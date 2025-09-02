@@ -25,10 +25,12 @@ static ServoConfig defaultServos[18] = {
     {33, SERVO_LEDC, {.ledc = {LEDC_CHANNEL_5}}},
 };
 
+// Constructor
 Servo::Servo() {
     for (int i = 0; i < NUM_SERVOS; ++i) servos[i] = defaultServos[i];
 }
 
+// Initialize MCPWM for a specific servo
 void Servo::initMCPWM(const ServoConfig& cfg) {
     mcpwm_config_t pwm_config;
     pwm_config.frequency = 50;
@@ -40,6 +42,7 @@ void Servo::initMCPWM(const ServoConfig& cfg) {
     mcpwm_init(cfg.mcpwm.unit, cfg.mcpwm.timer, &pwm_config);
 }
 
+// Initialize LEDC for a specific servo
 void Servo::initLEDC(const ServoConfig& cfg) {
     static bool timerConfigured = false;
     if (!timerConfigured) {
@@ -62,6 +65,7 @@ void Servo::initLEDC(const ServoConfig& cfg) {
     ledc_channel_config(&ledc_channel);
 }
 
+// Initialize all servos
 void Servo::init() {
     for (int i = 0; i < NUM_SERVOS; ++i) {
         if (servos[i].type == SERVO_MCPWM) initMCPWM(servos[i]);
@@ -69,6 +73,7 @@ void Servo::init() {
     }
 }
 
+// Disable a specific servo
 void Servo::disable(int servoNum) {
     if (servoNum < 0 || servoNum >= NUM_SERVOS) return;
     if (servos[servoNum].type == SERVO_MCPWM) {
@@ -78,6 +83,7 @@ void Servo::disable(int servoNum) {
     }
 }
 
+// Set the angle for a specific servo
 void Servo::setAngle(int servoNum, double angle) {
     if (servoNum < 0 || servoNum >= NUM_SERVOS) return;
     if (servos[servoNum].type == SERVO_MCPWM) {

@@ -7,6 +7,7 @@ int16_t lastArgs[3] = {0, 0, 0};
 ControlPacket controlPacket;
 HexPacket hexPacket;
 
+// MAC address of the controller
 uint8_t controllerMAC[6] = {0x80, 0x65, 0x99, 0xE9, 0x6F, 0x56};
 
 // Function to handle espNOW receive event (Arduino ESP32 signature)

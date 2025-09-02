@@ -3,6 +3,7 @@
 
 Animation animation;
 
+// Handles command processing
 void CommandFSM() {
   switch (controlPacket.command) {
     case CMD_SET_GAIT:
@@ -25,6 +26,7 @@ void CommandFSM() {
   }
 }
 
+// Handles state transitions
 void StateFSM() {
   switch (hexPacket.currentMode) {
     case MODE_NORMAL:
@@ -44,6 +46,7 @@ void StateFSM() {
     }    
 }
 
+// Setup function
 void setup() {
     configManager.initEEPROM();
     configManager.loadLegOffsets();
@@ -53,7 +56,7 @@ void setup() {
     animation.Startup();
 }
 
-
+// Main loop
 void loop() {
   SendHexData();
   if(CommandChanged()) {CommandFSM();}
