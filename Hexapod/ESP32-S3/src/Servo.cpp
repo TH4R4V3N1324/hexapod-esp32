@@ -24,7 +24,7 @@ ledc_servo LEDC_SERVOS[NUM_LEDC_SERVOS] = {
     {SERVO18_GPIO, LEDC_CHANNEL_5}
 };
 
-void Servo::init_servos() {
+void Servo::init() {
     mcpwm_config_t pwm_config;
     pwm_config.frequency = 50; // Set frequency to 50Hz
     pwm_config.cmpr_a = 0;     // Set duty cycle to 0%
@@ -54,6 +54,16 @@ void Servo::init_servos() {
         ledc_channel.duty = 0;
         ledc_channel.hpoint = 0;
         ledc_channel_config(&ledc_channel);
+    }
+}
+
+void Servo::disable(int servoNum) {
+    if (servoNum >= 0 && servoNum < NUM_MCPWM_SERVOS) {
+        mcpwm_stop(MCPWM_SERVOS[servoNum].mcpwm_unit, MCPWM_SERVOS[servoNum].mcpwm_timer);
+    }
+
+    if (servoNum >= NUM_MCPWM_SERVOS && servoNum < NUM_MCPWM_SERVOS + NUM_LEDC_SERVOS) {
+        ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_SERVOS[servoNum - NUM_MCPWM_SERVOS].channel, 0);
     }
 }
 

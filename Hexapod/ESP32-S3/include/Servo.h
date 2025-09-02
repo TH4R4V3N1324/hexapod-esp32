@@ -43,9 +43,10 @@ class Servo {
 private:
     mcpwm_servo MCPWM_SERVOS[NUM_MCPWM_SERVOS];
     ledc_servo LEDC_SERVOS[NUM_LEDC_SERVOS];
-    void init_servos();
+    
 public:
-    Servo() {init_servos();}
+    void init();
+    void disable(int servoNum);
     void setServoAngle(int servoNum, double angle);
 };
 
