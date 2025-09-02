@@ -80,9 +80,6 @@ void Servo::disable(int servoNum) {
 
 void Servo::setAngle(int servoNum, double angle) {
     if (servoNum < 0 || servoNum >= NUM_SERVOS) return;
-
-    printf("Setting servo %d on GPIO %d to angle %.2f\n", servoNum, servos[servoNum].gpio_num, angle);
-
     if (servos[servoNum].type == SERVO_MCPWM) {
         int32_t pulse_us = 1000 + (int)((angle / 180.0) * 1000);
         mcpwm_set_duty_in_us(servos[servoNum].mcpwm.unit, servos[servoNum].mcpwm.timer, servos[servoNum].mcpwm.gen, pulse_us);
