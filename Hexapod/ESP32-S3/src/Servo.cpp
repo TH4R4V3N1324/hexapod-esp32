@@ -56,3 +56,17 @@ void Servo::init_servos() {
         ledc_channel_config(&ledc_channel);
     }
 }
+
+void Servo::setServoAngle(int servoNum, double angle) {
+    int32_t pulse_us = 1000 + (int)((angle / 180.0) * 1000);
+
+    if (servoNum >= 0 && servoNum < NUM_MCPWM_SERVOS) {
+        mcpwm_set_duty_in_us(MCPWM_SERVOS[servoNum].mcpwm_unit, MCPWM_SERVOS[servoNum].mcpwm_timer, MCPWM_SERVOS[servoNum].gen, pulse_us);
+    }
+
+    if (servoNum >= NUM_MCPWM_SERVOS && servoNum < NUM_MCPWM_SERVOS + NUM_LEDC_SERVOS) {
+        uint32_t duty = (pulse_us * 8191) / 20000; // 13-bit resolution
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_SERVOS[servoNum - NUM_MCPWM_SERVOS].channel, duty);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_SERVOS[servoNum - NUM_MCPWM_SERVOS].channel);
+    }
+}

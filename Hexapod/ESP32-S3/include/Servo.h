@@ -46,6 +46,7 @@ private:
     void init_servos();
 public:
     Servo() {init_servos();}
+    void setServoAngle(int servoNum, double angle);
 };
 
 #endif
