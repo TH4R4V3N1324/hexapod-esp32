@@ -8,7 +8,7 @@ ConfigManager configManager;
 int16_t ConfigManager::jointOffsets[NUM_LEGS][NUM_JOINTS] = {};
 
 // Initialize EEPROM
-void initEEPROM() {
+void ConfigManager::initEEPROM() {
     EEPROM.begin(EEPROM_SIZE);
 }
 
