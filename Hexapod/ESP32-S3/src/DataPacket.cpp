@@ -21,6 +21,8 @@ static void receiveEventEspNOW(const uint8_t *mac, const uint8_t *data, int len)
     if (controlPacketChanged(incomingControlPacket, controlPacket)) {
         controlPacket = incomingControlPacket;
     }
+
+    SendHexData();
 }
 
 // Function to initialize ESP-NOW communication

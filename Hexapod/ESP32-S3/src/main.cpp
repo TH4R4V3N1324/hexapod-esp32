@@ -58,9 +58,7 @@ void setup() {
 
 // Main loop
 void loop() {
-  SendHexData();
   if(CommandChanged()) {CommandFSM();}
-  SendHexData();
   StateFSM();
   delay(1);
 }
