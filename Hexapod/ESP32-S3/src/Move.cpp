@@ -9,6 +9,7 @@ Move::Move(){
 
 float Move::GetCurrentDraw() {
     // Placeholder implementation, replace with actual current draw logic
+    return 0.0f;
 }
 
 //sets up the switches with pull down resistors if not setup already
@@ -24,6 +25,7 @@ void Move::SetupSwitches(){
 //returns state of switch found in legSwitch
 bool Move::GetSwitchStatus(int legNum){
     // Placeholder for switch status logic
+    return false; // Default to false if not implemented
 }
 
 //returns leg position found in legPosition if it exists
