@@ -46,9 +46,9 @@ void Move::Position(const Vector3& position, int legNum){
     angles = Cal.ApplyOffsets(angles, legNum);
 
     // Assign angles to servos directly (assuming 3 servos per leg)
-    servoController.setServoAngle(Servos.coxa, angles.coxaAngle);
-    servoController.setServoAngle(Servos.femur, angles.femurAngle);
-    servoController.setServoAngle(Servos.tibia, angles.tibiaAngle);
+    servoController.setAngle(Servos.coxa, angles.coxaAngle);
+    servoController.setAngle(Servos.femur, angles.femurAngle);
+    servoController.setAngle(Servos.tibia, angles.tibiaAngle);
 
     Calculate::legPosition[legNum].position = position;
     Calculate::legPosition[legNum].angles = angles;
@@ -70,9 +70,9 @@ void Move::Angles(JointAngles& angles, int legNum) {
 
     // Assign angles to servos directly (assuming 3 servos per leg)
     LegServo Servos = legs.at(legNum);
-    servoController.setServoAngle(Servos.coxa, angles.coxaAngle);
-    servoController.setServoAngle(Servos.femur, angles.femurAngle);
-    servoController.setServoAngle(Servos.tibia, angles.tibiaAngle);
+    servoController.setAngle(Servos.coxa, angles.coxaAngle);
+    servoController.setAngle(Servos.femur, angles.femurAngle);
+    servoController.setAngle(Servos.tibia, angles.tibiaAngle);
 
     Calculate::legPosition[legNum].angles = angles;
     Calculate::legPosition[legNum].position = Cal.position(angles, legNum);
