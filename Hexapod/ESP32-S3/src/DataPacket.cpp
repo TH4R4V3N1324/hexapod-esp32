@@ -7,6 +7,21 @@ int16_t lastArgs[3] = {0, 0, 0};
 ControlPacket controlPacket;
 HexPacket hexPacket;
 
+uint8_t controllerMAC[6] = {0x80, 0x65, 0x99, 0xE9, 0x6F, 0x56};
+
+// Function to handle espNOW receive event (Arduino ESP32 signature)
+static void receiveEventEspNOW(const uint8_t *mac, const uint8_t *data, int len) {
+    if (len != sizeof(ControlPacket)) {
+        Serial.println("Received ESP-NOW data size incorrect");
+        return;
+    }
+    ControlPacket incomingControlPacket = {};
+    memcpy(&incomingControlPacket, data, sizeof(ControlPacket));
+    if (controlPacketChanged(incomingControlPacket, controlPacket)) {
+        controlPacket = incomingControlPacket;
+    }
+}
+
 // Function to initialize ESP-NOW communication
 void initEspNow() {
     // Initialize WiFi in station mode
@@ -37,19 +52,6 @@ void initEspNow() {
 // Compare if two ControlPackets are different
 bool controlPacketChanged(const ControlPacket& a, const ControlPacket& b) {
     return memcmp(&a, &b, sizeof(ControlPacket)) != 0;
-}
-
-// Function to handle espNOW receive event (Arduino ESP32 signature)
-static void receiveEventEspNOW(const uint8_t *mac, const uint8_t *data, int len) {
-    if (len != sizeof(ControlPacket)) {
-        Serial.println("Received ESP-NOW data size incorrect");
-        return;
-    }
-    ControlPacket incomingControlPacket = {};
-    memcpy(&incomingControlPacket, data, sizeof(ControlPacket));
-    if (controlPacketChanged(incomingControlPacket, controlPacket)) {
-        controlPacket = incomingControlPacket;
-    }
 }
 
 // Sends hexapod data to ESP32 stored in hexPacket

@@ -57,7 +57,7 @@ extern ControlPacket controlPacket;
 extern HexPacket hexPacket;
 
 // Mac address for hexapod esp32
-uint8_t controllerMAC[] = {0x80, 0x65, 0x99, 0xE9, 0x6F, 0x56};
+extern uint8_t controllerMAC[6];
 
 void initEspNow();
 bool controlPacketChanged(const ControlPacket& a, const ControlPacket& b);
