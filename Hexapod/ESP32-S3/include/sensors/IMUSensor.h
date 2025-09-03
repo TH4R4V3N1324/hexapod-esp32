@@ -20,13 +20,13 @@ private:
     void BMI330_writeRegister(uint8_t reg, uint8_t data);
     void BMI330_readRegister(uint8_t reg, uint8_t *data, uint8_t len);
     void BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz);
+    void updateOrientation();
     float pitch = 0.0f, roll = 0.0f;
     float dt = 0.01f; // 100 Hz loop
 public:
     void init() override;
-    void updateOrientation();
-    float getPitch() const { return pitch; }
-    float getRoll() const { return roll; }
+    float getPitch() {updateOrientation(); return pitch;}
+    float getRoll() {updateOrientation(); return roll;}
 };
 
 #endif
