@@ -44,6 +44,7 @@ void IMUSensor::BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* 
     *gz = (int16_t)((data[11] << 8) | data[10]);
 }
 
+// Update pitch and roll using a complementary filter
 void IMUSensor::updateOrientation() {
     int16_t ax_raw, ay_raw, az_raw, gx_raw, gy_raw, gz_raw;
     BMI330_readData(&ax_raw, &ay_raw, &az_raw, &gx_raw, &gy_raw, &gz_raw);
