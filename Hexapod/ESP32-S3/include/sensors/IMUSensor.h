@@ -2,8 +2,23 @@
 #define IMU_SENSOR_H
 
 #include "SensorBase.h"
+#include "I2CManager.h"
+
+#define BMI330_ADDR      0x68 << 1   // 7-bit addr shifted for HAL
+#define BMI330_CHIP_ID   0x00
+#define BMI330_CMD       0x7E
+#define BMI330_ACC_CONF  0x20
+#define BMI330_GYR_CONF  0x21
+#define BMI330_PWR_CONF  0x1A
+#define BMI330_PWR_CTRL  0x1B
+#define BMI330_DATA_ACC  0x0C  // start of accel data
+#define BMI330_DATA_GYR  0x12  // start of gyro data
 
 class IMUSensor : public SensorBase {
+private:
+    void BMI330_writeRegister(uint8_t reg, uint8_t data);
+    void BMI330_readRegister(uint8_t reg, uint8_t *data, uint8_t len);
+    void BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz);
 public:
     void init() override;
 };
