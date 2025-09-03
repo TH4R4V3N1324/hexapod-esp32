@@ -15,8 +15,6 @@
 #define BMI330_DATA_ACC  0x0C  // start of accel data
 #define BMI330_DATA_GYR  0x12  // start of gyro data
 
-#define M_PI acos(-1.0)
-
 class IMUSensor : public SensorBase {
 private:
     void BMI330_writeRegister(uint8_t reg, uint8_t data);
