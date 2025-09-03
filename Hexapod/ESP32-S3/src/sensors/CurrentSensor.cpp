@@ -1,10 +1,17 @@
 #include "CurrentSensor.h"
 
 void CurrentSensor::init() {
-    // Initialization code for the current sensor
+    ina260.begin();
 }
 
 float CurrentSensor::readCurrent() {
-    // Code to read the current from the sensor
-    return 0.0f;  // Placeholder value
+    return ina260.readCurrent();
+}
+
+float CurrentSensor::readVoltage() {
+    return ina260.readBusVoltage();
+}
+
+float CurrentSensor::readPower() {
+    return ina260.readPower();
 }
