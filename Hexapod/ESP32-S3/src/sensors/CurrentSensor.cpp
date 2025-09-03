@@ -37,6 +37,7 @@ float CurrentSensor::readPower() {
     return raw * 10.0f; // mW
 }
 
+// Set trigger mode
 void CurrentSensor::setTriggerMode(TriggerMode mode) {
     uint8_t buf[3];
     buf[0] = INA260_REG_MASK_ENABLE;
@@ -45,6 +46,7 @@ void CurrentSensor::setTriggerMode(TriggerMode mode) {
     i2cManager.write(INA260_ADDRESS, buf, 3);
 }
 
+// Set trigger threshold
 void CurrentSensor::setTriggerThreshold(float threshold) {
     uint16_t register_value = (uint16_t)(threshold / 1.25f);
     uint8_t buf[3];
