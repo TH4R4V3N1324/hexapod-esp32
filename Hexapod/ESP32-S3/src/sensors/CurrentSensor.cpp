@@ -36,3 +36,20 @@ float CurrentSensor::readPower() {
     uint16_t raw = readRegister(INA260_REG_POWER);
     return raw * 10.0f; // mW
 }
+
+void CurrentSensor::setTriggerMode(TriggerMode mode) {
+    uint8_t buf[3];
+    buf[0] = INA260_REG_MASK_ENABLE;
+    buf[1] = (mode >> 8) & 0xFF;
+    buf[2] = mode & 0xFF;
+    i2cManager.write(INA260_ADDRESS, buf, 3);
+}
+
+void CurrentSensor::setTriggerThreshold(float threshold) {
+    uint16_t register_value = (uint16_t)(threshold / 1.25f);
+    uint8_t buf[3];
+    buf[0] = INA260_REG_ALERT_LIMIT;
+    buf[1] = (register_value >> 8) & 0xFF;
+    buf[2] = register_value & 0xFF;
+    i2cManager.write(INA260_ADDRESS, buf, 3);
+}
