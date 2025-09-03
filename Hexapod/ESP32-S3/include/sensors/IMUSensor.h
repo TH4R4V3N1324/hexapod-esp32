@@ -27,6 +27,8 @@ private:
 public:
     void init() override;
     void updateOrientation();
+    float getPitch() const { return pitch; }
+    float getRoll() const { return roll; }
 };
 
 #endif
