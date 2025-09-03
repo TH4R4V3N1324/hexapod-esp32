@@ -48,6 +48,7 @@ void StateFSM() {
 
 // Setup function
 void setup() {
+    i2cManager.init(20, 21);
     configManager.initEEPROM();
     configManager.loadLegOffsets();
     hexPacket.currentHeight = 120;

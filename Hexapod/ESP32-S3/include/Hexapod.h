@@ -4,5 +4,6 @@
 #include "DataPacket.h"
 #include "Animation.h"
 #include "ConfigManager.h"
+#include "I2CManager.h"
 
 #endif
