@@ -11,18 +11,9 @@
 #define SENSOR5_PIN 38
 #define SENSOR6_PIN 39
 
-gpio_num_t SENSORS[] = {
-    gpio_num_t(SENSOR1_PIN),
-    gpio_num_t(SENSOR2_PIN),
-    gpio_num_t(SENSOR3_PIN),
-    gpio_num_t(SENSOR4_PIN),
-    gpio_num_t(SENSOR5_PIN),
-    gpio_num_t(SENSOR6_PIN)
-};
-
 class LegContactSensor : public SensorBase {
 private:
-    // Private member variables
+    static const gpio_num_t LEG_SENSORS[];
 public:
     LegContactSensor();
     void init() override;

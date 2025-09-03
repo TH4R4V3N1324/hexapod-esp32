@@ -1,26 +1,35 @@
 #include "LegContactSensor.h"
 
+const gpio_num_t LegContactSensor::LEG_SENSORS[] = {
+    gpio_num_t(SENSOR1_PIN),
+    gpio_num_t(SENSOR2_PIN),
+    gpio_num_t(SENSOR3_PIN),
+    gpio_num_t(SENSOR4_PIN),
+    gpio_num_t(SENSOR5_PIN),
+    gpio_num_t(SENSOR6_PIN)
+};
+
 LegContactSensor::LegContactSensor() {
     // Constructor implementation
 }
 
 void LegContactSensor::init() {
     // Initialization code
-    for (int i = 0; i < sizeof(SENSORS) / sizeof(SENSORS[0]); i++) {
-        gpio_set_direction(SENSORS[i], GPIO_MODE_INPUT);
+    for (int i = 0; i < sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0]); i++) {
+        gpio_set_direction(LEG_SENSORS[i], GPIO_MODE_INPUT);
     }
 
-    for (int i = 0; i < sizeof(SENSORS) / sizeof(SENSORS[0]); i++) {
-        gpio_set_pull_mode(SENSORS[i], GPIO_PULLUP_ONLY);
+    for (int i = 0; i < sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0]); i++) {
+        gpio_set_pull_mode(LEG_SENSORS[i], GPIO_PULLUP_ONLY);
     }
 }
 
 bool LegContactSensor::readState(int legNum) {
-    if (legNum < 0 || legNum >= sizeof(SENSORS) / sizeof(SENSORS[0])) {
+    if (legNum < 0 || legNum >= sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0])) {
         return false;
     }
 
-    bool state = gpio_get_level(SENSORS[legNum]);
+    bool state = gpio_get_level(LEG_SENSORS[legNum]);
     return state;
 
 }
