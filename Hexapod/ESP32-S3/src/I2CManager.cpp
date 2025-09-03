@@ -1,5 +1,7 @@
 #include "I2CManager.h"
 
+I2CManager i2cManager;
+
 void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin ) {
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;

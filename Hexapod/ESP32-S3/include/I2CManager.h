@@ -14,4 +14,6 @@ public:
     void read(uint8_t addr, uint8_t *data, size_t len);
 };
 
+extern I2CManager i2cManager; // Global instance
+
 #endif
