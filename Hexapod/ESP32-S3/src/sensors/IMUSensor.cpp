@@ -43,3 +43,30 @@ void IMUSensor::BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* 
     *gy = (int16_t)((data[9] << 8) | data[8]);
     *gz = (int16_t)((data[11] << 8) | data[10]);
 }
+
+void IMUSensor::updateOrientation() {
+    int16_t ax_raw, ay_raw, az_raw, gx_raw, gy_raw, gz_raw;
+    BMI330_readData(&ax_raw, &ay_raw, &az_raw, &gx_raw, &gy_raw, &gz_raw);
+
+    // convert raw to physical
+    float accelScale = 8.0f / 32768.0f;    // g/LSB
+    float gyroScale  = 1000.0f / 32768.0f; // dps/LSB
+    float ax = ax_raw * accelScale;
+    float ay = ay_raw * accelScale;
+    float az = az_raw * accelScale;
+    float gx = gx_raw * gyroScale * M_PI/180.0f; // rad/s
+    float gy = gy_raw * gyroScale * M_PI/180.0f; // rad/s
+
+    // Update pitch and roll
+    pitch += gx * dt;
+    roll  += gy * dt;
+
+    // Compute pitch and roll from accelerometer data
+    float pitchAcc = atan2(-ax, sqrt(ay*ay + az*az));
+    float rollAcc  = atan2(ay, az);
+
+    // Complementary filter
+    const float alpha = 0.98f;
+    pitch = alpha * pitch + (1.0f - alpha) * pitchAcc;
+    roll  = alpha * roll  + (1.0f - alpha) * rollAcc;
+}
