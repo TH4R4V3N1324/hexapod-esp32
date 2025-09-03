@@ -2,11 +2,17 @@
 #define CURRENT_SENSOR_H
 
 #include "SensorBase.h"
-#include "Adafruit_INA260.h"
+#include "I2CManager.h"
+
+#define INA260_ADDRESS           0x40
+#define INA260_REG_CONFIG        0x00
+#define INA260_REG_CURRENT       0x01
+#define INA260_REG_BUS_VOLTAGE   0x02
+#define INA260_REG_POWER         0x03
 
 class CurrentSensor : public SensorBase {
 private:
-    Adafruit_INA260 ina260;
+    uint16_t readRegister(uint8_t reg);
 public:
     void init() override;
     float readCurrent();
