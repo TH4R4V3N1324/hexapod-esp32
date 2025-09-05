@@ -10,7 +10,12 @@ HexPacket hexPacket;
 // MAC address of the controller
 uint8_t controllerMAC[6] = {0x80, 0x65, 0x99, 0xE9, 0x6F, 0x56};
 
-// Function to handle espNOW receive event (Arduino ESP32 signature)
+/*
+@brief Callback function to handle received ESP-NOW data
+@param mac The MAC address of the sender
+@param data The received data
+@param len The length of the received data
+*/
 static void receiveEventEspNOW(const uint8_t *mac, const uint8_t *data, int len) {
     if (len != sizeof(ControlPacket)) {
         Serial.println("Received ESP-NOW data size incorrect");
@@ -52,7 +57,12 @@ void initEspNow() {
     }
 }
 
-// Compare if two ControlPackets are different
+/*
+@brief Compare if two ControlPackets are different
+@param a The first ControlPacket
+@param b The second ControlPacket
+@return true if the packets are different, false otherwise
+*/
 bool controlPacketChanged(const ControlPacket& a, const ControlPacket& b) {
     return memcmp(&a, &b, sizeof(ControlPacket)) != 0;
 }
