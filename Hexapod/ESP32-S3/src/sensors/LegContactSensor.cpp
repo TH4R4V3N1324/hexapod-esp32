@@ -13,17 +13,16 @@ LegContactSensor::LegContactSensor() {
     // Constructor implementation
 }
 
+// Initialize the sensor GPIOs
 void LegContactSensor::init() {
     // Initialization code
     for (int i = 0; i < sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0]); i++) {
         gpio_set_direction(LEG_SENSORS[i], GPIO_MODE_INPUT);
-    }
-
-    for (int i = 0; i < sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0]); i++) {
         gpio_set_pull_mode(LEG_SENSORS[i], GPIO_PULLUP_ONLY);
     }
 }
 
+// Read the state of a specific leg contact sensor
 bool LegContactSensor::readState(int legNum) {
     if (legNum < 0 || legNum >= sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0])) {
         return false;
