@@ -6,7 +6,11 @@ Move::Move(){
     servoController.init();
 }
 
-//returns leg position found in legPosition if it exists
+/*
+@brief Get the current position of the specified leg.
+@param legNum The leg number (1-6).
+@return The current position of the leg as a Vector3 object.
+*/
 Vector3 Move::GetLegPosition(int legNum) const{
     if (Calculate::legPosition.find(legNum) != Calculate::legPosition.end()) {
         return Calculate::legPosition.at(legNum).position;
@@ -15,7 +19,12 @@ Vector3 Move::GetLegPosition(int legNum) const{
     }
 }
 
-//moves leg tip to position through a vector
+/*
+@brief Move the specified leg to a given position.
+@param position The target position as a Vector3 object.
+@param legNum The leg number (1-6).
+@return void
+*/
 void Move::Position(const Vector3& position, int legNum){
     LegServo Servos = legs.at(legNum);
     JointAngles angles = Cal.angle(position, legNum);
@@ -32,7 +41,11 @@ void Move::Position(const Vector3& position, int legNum){
     Calculate::legPosition[legNum].angles = angles;
 };
 
-//turns the servos off in a given leg
+/*
+brief Deactivate the specified leg by disabling its servos.
+@param legNum The leg number (1-6).
+@return void
+*/
 void Move::Deactivate(int legNum){
     LegServo Servos = legs.at(legNum);
 
@@ -41,7 +54,12 @@ void Move::Deactivate(int legNum){
     servoController.disable(Servos.tibia);
 };
 
-// Sets leg angles to specific values
+/*
+@brief Set the angles of the specified leg's servos.
+@param angles The target joint angles as a JointAngles object.
+@param legNum The leg number (1-6).
+@return void
+*/
 void Move::Angles(JointAngles& angles, int legNum) {
     // Apply offsets to angles
     angles = Cal.ApplyOffsets(angles, legNum);
