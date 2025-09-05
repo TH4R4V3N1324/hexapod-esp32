@@ -10,8 +10,8 @@ class I2CManager {
 public:
     void init(uint8_t SDA_pin, uint8_t SCL_pin);
     void deinit();
-    void write(uint8_t addr, uint8_t *data, size_t len);
-    void read(uint8_t addr, uint8_t *data, size_t len);
+    bool write(uint8_t addr, uint8_t *data, size_t len);
+    bool read(uint8_t addr, uint8_t *data, size_t len);
 };
 
 extern I2CManager i2cManager; // Global instance
