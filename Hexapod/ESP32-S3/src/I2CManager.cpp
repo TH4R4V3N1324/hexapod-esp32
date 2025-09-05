@@ -2,6 +2,7 @@
 
 I2CManager i2cManager;
 
+// Initialize I2C with specified SDA and SCL pins
 void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin ) {
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;
@@ -15,14 +16,29 @@ void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin ) {
     i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0);
 }
 
+// Deinitialize I2C
 void I2CManager::deinit() {
     i2c_driver_delete(I2C_NUM_0);
 }
 
+/*
+@brief Write data to an I2C device
+@param addr I2C device address
+@param data Pointer to the data buffer
+@param len Length of the data buffer
+@note This function uses a timeout defined by I2C_MASTER_TIMEOUT_MS
+*/
 void I2CManager::write(uint8_t addr, uint8_t *data, size_t len) {
     i2c_master_write_to_device(I2C_NUM_0, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
+/*
+@brief Read data from an I2C device
+@param addr I2C device address
+@param data Pointer to the data buffer
+@param len Length of the data buffer
+@note This function uses a timeout defined by I2C_MASTER_TIMEOUT_MS
+*/
 void I2CManager::read(uint8_t addr, uint8_t *data, size_t len) {
     i2c_master_read_from_device(I2C_NUM_0, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
