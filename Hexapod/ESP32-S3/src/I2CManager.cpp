@@ -42,3 +42,31 @@ bool I2CManager::write(uint8_t addr, uint8_t *data, size_t len) {
 bool I2CManager::read(uint8_t addr, uint8_t *data, size_t len) {
     return i2c_master_read_from_device(I2C_NUM_0, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
+
+/*
+@brief Read a register from an I2C device
+@param deviceAddr I2C device address
+@param reg Register address to read from
+@param data Pointer to the data buffer
+@param len Length of the data buffer
+@note This function first writes the register address, then reads the data
+*/
+bool I2CManager::readRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, uint8_t len) {
+    if (!write(deviceAddr, &reg, 1)) return false; // Set register pointer
+    return read(deviceAddr, data, len); // Read data
+}
+
+/*
+@brief Write to a register of an I2C device
+@param deviceAddr I2C device address
+@param reg Register address to write to
+@param data Pointer to the data buffer
+@param len Length of the data buffer
+@note This function prepends the register address to the data buffer before writing
+*/
+bool I2CManager::writeRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, uint8_t len) {
+    uint8_t buf[len + 1];
+    buf[0] = reg;
+    memcpy(&buf[1], data, len);
+    return write(deviceAddr, buf, len + 1);
+}
