@@ -8,8 +8,10 @@
 #define I2C_MASTER_TIMEOUT_MS 1000         // I2C master timeout
 
 class I2CManager {
+private:
+    i2c_port_t port = I2C_NUM_0;
 public:
-    void init(uint8_t SDA_pin, uint8_t SCL_pin);
+    void init(uint8_t SDA_pin, uint8_t SCL_pin, i2c_port_t i2c_port = I2C_NUM_0);
     void deinit();
     bool write(uint8_t addr, uint8_t *data, size_t len);
     bool read(uint8_t addr, uint8_t *data, size_t len);

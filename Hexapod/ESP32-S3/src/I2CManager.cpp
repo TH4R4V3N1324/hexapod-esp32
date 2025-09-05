@@ -2,8 +2,16 @@
 
 I2CManager i2cManager;
 
-// Initialize I2C with specified SDA and SCL pins
-void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin ) {
+/*
+@brief Initialize I2C with specified SDA and SCL pins
+@param SDA_pin GPIO number for SDA
+@param SCL_pin GPIO number for SCL
+@param i2c_port I2C port number (default is I2C_NUM_0)
+@return void
+@note This function configures the I2C driver with standard settings
+*/
+void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin, i2c_port_t i2c_port) {
+    port = i2c_port;
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;
     conf.sda_io_num = SDA_pin;
@@ -12,13 +20,13 @@ void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin ) {
     conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
     conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
 
-    i2c_param_config(I2C_NUM_0, &conf);
-    i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0);
+    i2c_param_config(i2c_port, &conf);
+    i2c_driver_install(i2c_port, conf.mode, 0, 0, 0);
 }
 
 // Deinitialize I2C
 void I2CManager::deinit() {
-    i2c_driver_delete(I2C_NUM_0);
+    i2c_driver_delete(port);
 }
 
 /*
@@ -30,7 +38,7 @@ void I2CManager::deinit() {
 @note This function uses a timeout defined by I2C_MASTER_TIMEOUT_MS
 */
 bool I2CManager::write(uint8_t addr, uint8_t *data, size_t len) {
-    return i2c_master_write_to_device(I2C_NUM_0, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    return i2c_master_write_to_device(port, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
 /*
@@ -42,7 +50,7 @@ bool I2CManager::write(uint8_t addr, uint8_t *data, size_t len) {
 @note This function uses a timeout defined by I2C_MASTER_TIMEOUT_MS
 */
 bool I2CManager::read(uint8_t addr, uint8_t *data, size_t len) {
-    return i2c_master_read_from_device(I2C_NUM_0, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    return i2c_master_read_from_device(port, addr, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
 /*
@@ -80,7 +88,7 @@ void I2CManager::scanBus() {
     printf("Scanning I2C bus...\n");
     for (uint8_t addr = 1; addr < 127; addr++) {
         uint8_t data = 0;
-        if (i2c_master_write_to_device(I2C_NUM_0, addr, &data, 0, 100 / portTICK_PERIOD_MS) == ESP_OK) {
+        if (i2c_master_write_to_device(port, addr, &data, 0, 100 / portTICK_PERIOD_MS) == ESP_OK) {
             printf("Found device at 0x%02X\n", addr);
         }
     }
