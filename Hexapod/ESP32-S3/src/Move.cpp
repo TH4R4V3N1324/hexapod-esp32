@@ -3,29 +3,7 @@
 using namespace std;
 
 Move::Move(){
-    SetupSwitches();
     servoController.init();
-}
-
-float Move::GetCurrentDraw() {
-    // Placeholder implementation, replace with actual current draw logic
-    return 0.0f;
-}
-
-//sets up the switches with pull down resistors if not setup already
-void Move::SetupSwitches(){
-    static bool initialized = false;
-
-    if (!initialized) {
-        // Placeholder for switch setup logic
-        initialized = true;
-    } 
-}
-
-//returns state of switch found in legSwitch
-bool Move::GetSwitchStatus(int legNum){
-    // Placeholder for switch status logic
-    return false; // Default to false if not implemented
 }
 
 //returns leg position found in legPosition if it exists

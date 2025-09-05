@@ -27,27 +27,12 @@ private:
         {6, {15, 16, 17}}
     };
 
-    //assigns the relavant switch to its corrosponding leg
-    /*
-    std::map<int, const uint> legSwitch = {
-        {1, servo::servo2040::SENSOR_1_ADDR},
-        {2, servo::servo2040::SENSOR_2_ADDR},
-        {3, servo::servo2040::SENSOR_3_ADDR},
-        {4, servo::servo2040::SENSOR_4_ADDR},
-        {5, servo::servo2040::SENSOR_5_ADDR},
-        {6, servo::servo2040::SENSOR_6_ADDR}
-    };
-    */
-
 public:
     Move();
     Calculate Cal;
-    void SetupSwitches();
-    bool GetSwitchStatus(int legNum);
     Vector3 GetLegPosition(int legNum) const;
     void Position(const Vector3& position, int legNum);
     void Deactivate(int legNum);
-    float GetCurrentDraw();
     void Angles(JointAngles& angles, int legNum);
 };
 
