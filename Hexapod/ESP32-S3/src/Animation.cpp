@@ -18,29 +18,40 @@ std::vector<std::vector<int>> Animation::GetLegConfig(Gait gait){
     }
 }
 
-// Changes to the next gait when called
+/*
+@brief Changes to the next gait when called
+*/
 void Animation::CycleGait(){
     pendingGait = static_cast<Gait>((hexPacket.currentGait + 1) % NUM_GAITS);
     gaitChangeRequested = true;
 }
 
-// Changes to given gait
+/*
+@brief Sets the current gait to the specified gait
+*/
 void Animation::SetGait(Gait gait) {
     pendingGait = gait;
     gaitChangeRequested = true;
 }
 
-// Changes to the next mode when called
+/*
+@brief Changes to the next mode when called
+*/
 void Animation::CycleMode() {
     hexPacket.currentMode = static_cast<Mode>((hexPacket.currentMode + 1) % NUM_MODES);
 }
 
-// Changes to given mode
+/*
+@brief Sets the current mode to the specified mode
+*/
 void Animation::SetMode(Mode mode) {
     hexPacket.currentMode = mode;
 }
 
-// Changes currentHeight to new height and updates startPosition
+/*
+@brief Set the height of the hexapod and update start positions accordingly
+@param newHeight The new height to set
+*/
 void Animation::SetHeight(double newHeight) {
     hexPacket.currentHeight = newHeight;
     startPos = Vector3{0, 130, -static_cast<double>(hexPacket.currentHeight)};
@@ -54,7 +65,9 @@ void Animation::SetHeight(double newHeight) {
     };
 }
 
-// Move to home, deactivate servos
+/*
+@brief Move all legs to the home position and deactivate servos
+*/
 void Animation::Shutdown() {
     for(size_t i = 1; i <= 6; ++i){
         move.Position(homePos, i);
@@ -63,7 +76,9 @@ void Animation::Shutdown() {
     }
 }
 
-// Move to home position for all legs
+/*
+@brief Startup sequence to move legs to start position
+*/
 void Animation::Startup() {
     static bool initialized = false;
     int resolution = 50;
@@ -102,7 +117,12 @@ void Animation::Startup() {
     }
 }
 
-// Returns if stick values have changed significantly
+/*
+@brief Check if there has been a significant change in joystick position
+@param stickX The current X position of the joystick
+@param stickY The current Y position of the joystick
+@return true if the change is significant, false otherwise
+*/
 bool SignificantStickChange(const int& stickX, const int& stickY) {
     static int lastX = 0;
     static int lastY = 0;
@@ -117,6 +137,13 @@ bool SignificantStickChange(const int& stickX, const int& stickY) {
     return significantChange;
 }
 
+/*
+@brief Blend target positions from forward and rotation inputs
+@param currentPos The current position of the leg
+@param forwardPos The target position based on forward input
+@param rotationPos The target position based on rotation input
+@return The blended target position
+*/
 Vector3 Animation::BlendTargetPosition(const Vector3& currentPos, const Vector3& forwardPos, const Vector3& rotationPos) {
     // Compute deltas from current position
     Vector3 forwardDelta = forwardPos - currentPos;
@@ -134,7 +161,10 @@ Vector3 Animation::BlendTargetPosition(const Vector3& currentPos, const Vector3&
     return blended;
 }
 
-// Handles idle return logic and returns true if idle return was handled
+/*
+@brief Handle idle/return-to-start logic
+@return true if the stick is idle, false otherwise
+*/
 bool Animation::HandleIdleReturn() {
     static int idleCount = 0;
     static const int idleThreshold = 100;
@@ -156,19 +186,30 @@ bool Animation::HandleIdleReturn() {
     return stickIdle; // Return whether stick is idle
 }
 
-// Ensures the gait configuration is set up correctly
+/*
+@brief Ensure the gait configuration is set up correctly
+*/
 void Animation::EnsureGaitConfig() {
     if (gaitState.config.empty()) {
         gaitState.config = GetLegConfig(hexPacket.currentGait);
     }
 }
 
-// Calculate stride multiplier based on the number of phases in the current gait
+/*
+@brief Calculate stride multiplier based on gait configuration
+@return The stride multiplier
+*/
 double Animation::CalculateStrideMultiplier() {
     return (gaitState.config.size() > 1) ? 1.0 / (gaitState.config.size() - 1) : 1.0;
 }
 
-// Generates trajectories for the current gait phase
+/*
+@brief Generate swing and stance trajectories for the legs
+@param liftHeight The height to lift the legs during swing
+@param resolution The number of steps in the trajectory
+@param swingTargetFunc A function to compute the swing target position for a leg
+@param stanceTargetFunc A function to compute the stance target position for a leg
+*/
 void Animation::GenerateTrajectories(
     int liftHeight,
     int resolution,
@@ -245,7 +286,14 @@ void Animation::GenerateTrajectories(
     }
 }
 
-// Performs a single step for all legs based on the current gait state
+/*
+@brief Perform a leg step based on the current trajectories
+@param stickIdle Whether the joystick is idle
+@param resolution The resolution of the trajectories
+@param handlePhaseTransition Whether to handle phase transitions
+@note If stickIdle is true, the step will not advance
+@note If handlePhaseTransition is false, phase transitions will be skipped and must be handled externally
+*/
 void Animation::PerformLegStep(bool stickIdle, int resolution, bool handlePhaseTransition) {
     for (int legNum = 1; legNum <= MAX_LEGS; ++legNum) {
         int swingSize = gaitState.swingSizes[legNum];
@@ -266,7 +314,9 @@ void Animation::PerformLegStep(bool stickIdle, int resolution, bool handlePhaseT
     }    
 }
 
-// Returns to the start position of the hexapod
+/*
+@brief Returns the hexapod to its start position
+*/
 void Animation::returnToStart() {
     static int counter = 0;
     static bool trajectoryGenerated = false;
@@ -327,7 +377,9 @@ void Animation::returnToStart() {
     }
 }
 
-// Handles the configuration state for the hexapod
+/*
+@brief Handles the configuration state for the hexapod
+*/
 void Animation::ConfigState() {
     JointAngles angles = {0, 0, 0}; // Default angles for configuration state
     int resolution = 50;
@@ -351,6 +403,13 @@ void Animation::ConfigState() {
     }
 }
 
+/*
+@brief Handles the strafing motion of the hexapod
+@note This function assumes that the joystick inputs are mapped such that:
+      - Left joystick Y controls lateral movement (left/right)
+      - Left joystick X controls forward/backward movement
+      - Right joystick X controls rotation (turning)
+*/
 void Animation::Strafe() {
     int liftHeight = 50;
     int resolution = 50;
@@ -390,6 +449,12 @@ void Animation::Strafe() {
     PerformLegStep(stickIdle, resolution);
 }
 
+/*
+@brief Handles the normal walking motion of the hexapod
+@note This function assumes that the joystick inputs are mapped such that:
+      - Left joystick Y controls forward/backward movement
+      - Left joystick X controls turning (left/right)
+*/
 void Animation::Normal() {
     int liftHeight = 50;
     int resolution = 50;
