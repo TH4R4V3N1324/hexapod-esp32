@@ -1,7 +1,5 @@
 #include "Servo.h"
-#include "Arduino.h"
 
-// Example safe GPIOs for 12 MCPWM and 6 LEDC servos
 static ServoConfig defaultServos[18] = {
     // MCPWM servos
     {4,  SERVO_MCPWM, {.mcpwm = {MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM0A, MCPWM_OPR_A}}},
@@ -71,7 +69,10 @@ void Servo::initLEDC(const ServoConfig& cfg) {
     ledc_channel_config(&ledc_channel);
 }
 
-// Initialize all servos
+/*
+@brief Initialize all servos
+@note This function initializes both MCPWM and LEDC servos based on their configuration
+*/
 void Servo::init() {
     for (int i = 0; i < NUM_SERVOS; ++i) {
         if (servos[i].type == SERVO_MCPWM) initMCPWM(servos[i]);
