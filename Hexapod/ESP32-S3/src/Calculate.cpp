@@ -3,7 +3,12 @@ using namespace std;
 
 unordered_map<int, LegPosition> Calculate::legPosition;
 
-//inverse kinematics, returns the angles needed to move to position
+/*
+@brief Inverse kinematics, calculates the joint angles based on the desired position
+@param position The desired position in 3D space
+@param legNum The leg number (1-6)
+@return The calculated joint angles
+*/
 JointAngles Calculate::angle(Vector3 position, int legNum){
     LegConfig config = legConfigs[legNum];
 
@@ -28,7 +33,12 @@ JointAngles Calculate::angle(Vector3 position, int legNum){
     return {coxaAngle, femurAngle, tibiaAngle};
 };
 
-// Forward kinematics, calculates the position based on joint angles
+/*
+@brief Forward kinematics, calculates the position based on the joint angles
+@param angles The joint angles
+@param legNum The leg number (1-6)
+@return The calculated position in 3D space
+*/
 Vector3 Calculate::position(JointAngles angles, int legNum) {
     // Convert angles from degrees to radians
     angles.coxaAngle *= M_PI / 180.0;
@@ -50,17 +60,38 @@ Vector3 Calculate::position(JointAngles angles, int legNum) {
     return position;
 }
 
-// Converts a position from leg frame to body frame based on the leg configuration
+/*
+@brief Converts a position from leg frame to body frame based on the leg configuration
+@param position The position in leg frame
+@param legNum The leg number (1-6)
+@return The position in body frame
+*/
 Vector3 Calculate::convertToBodyFrame(const Vector3& position, int legNum) {
     return position + legConfigs[legNum].translationOffset;
 }
 
-// Converts a position from body frame to leg frame based on the leg configuration
+/*
+@brief Converts a position from body frame to leg frame based on the leg configuration
+@param position The position in body frame
+@param legNum The leg number (1-6)
+@return The position in leg frame
+*/
 Vector3 Calculate::convertToLegFrame(const Vector3& position, int legNum) {
     return position - legConfigs[legNum].translationOffset;
 }
 
-//Calculates end position of a leg based on the current position and stride length
+/*
+@brief Calculates the direction vector based on joystick input
+@param joystickValueX The joystick X value (-128 to 127)
+@param joystickValueY The joystick Y value (-128 to 127)
+@param start The starting position
+@param legNum The leg number (1-6)
+@param invert Whether to invert the direction
+@param strideMultiplier The stride multiplier
+@param useBodyFrame Whether to use body frame coordinates
+@return The calculated direction vector
+@note The function handles mirroring for legs and can operate in both body and leg frames
+*/
 Vector3 Calculate::direction(const int16_t& joystickValueX, const int16_t& joystickValueY, const Vector3& start, int legNum, bool invert, double strideMultiplier, bool useBodyFrame) {
     const double maxStride = 60.0;
 
@@ -101,7 +132,17 @@ Vector3 Calculate::direction(const int16_t& joystickValueX, const int16_t& joyst
     return {start.x + dx_rot, start.y + dy_rot, start.z};
 }
 
-//Generates an arc trajectory between the start and end position
+/*
+@brief Generates an arc trajectory between start and end positions
+@param trajectory Pointer to an array to store the trajectory points
+@param outSize Reference to an integer to store the number of points generated
+@param start The starting position
+@param end The ending position
+@param liftHeight The height to lift the trajectory
+@param resolution The number of points to generate
+@param invert Whether to invert the trajectory
+@return void
+*/
 void Calculate::GenerateArcTrajectory(Vector3* trajectory, int& outSize, const Vector3& start, const Vector3& end, int liftHeight, int resolution, bool invert) {
     outSize = 0;
     if (resolution <= 0 || resolution > 10000) {
@@ -132,7 +173,15 @@ void Calculate::GenerateArcTrajectory(Vector3* trajectory, int& outSize, const V
     outSize = resolution + 1;
 }
 
-//Generates a straight trajectory between the start and end position
+/*
+@brief Generates a straight trajectory between start and end positions
+@param trajectory Pointer to an array to store the trajectory points
+@param outSize Reference to an integer to store the number of points generated
+@param start The starting position
+@param end The ending position
+@param resolution The number of points to generate
+@return void
+*/
 void Calculate::GenerateStraightTrajectory(Vector3* trajectory, int& outSize, const Vector3& start, const Vector3& end, int resolution) {
     outSize = 0;
     if (resolution <= 0 || resolution > 10000) {
@@ -162,7 +211,17 @@ void Calculate::GenerateStraightTrajectory(Vector3* trajectory, int& outSize, co
     outSize = resolution + 1;
 }
 
-// Generates a Bezier trajectory between the start and end position
+/*
+@brief Generates a Bezier curve trajectory between start and end positions
+@param trajectory Pointer to an array to store the trajectory points
+@param outSize Reference to an integer to store the number of points generated
+@param start The starting position
+@param end The ending position
+@param liftHeight The height to lift the trajectory
+@param resolution The number of points to generate
+@param invert Whether to invert the trajectory
+@return void
+*/
 void Calculate::GenerateBezierTrajectory(Vector3* trajectory, int& outSize, const Vector3& start, const Vector3& end, int liftHeight, int resolution, bool invert) {
     outSize = 0;
     if (resolution <= 0 || resolution > 10000) {
@@ -207,6 +266,12 @@ void Calculate::GenerateBezierTrajectory(Vector3* trajectory, int& outSize, cons
     outSize = resolution + 1;
 }
 
+/*
+@brief Applies joint angle offsets based on leg configuration
+@param angles The original joint angles
+@param legNum The leg number (1-6)
+@return The joint angles with offsets applied
+*/
 JointAngles Calculate::ApplyOffsets(JointAngles& angles, int legNum) {
     // Apply leg offsets
     const int16_t* offset = configManager.getLegOffsets(legNum - 1);
