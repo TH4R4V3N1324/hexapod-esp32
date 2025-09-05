@@ -74,3 +74,15 @@ bool I2CManager::writeRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, u
     memcpy(&buf[1], data, len);
     return write(deviceAddr, buf, len + 1);
 }
+
+// Scan the I2C bus for devices and print their addresses
+void I2CManager::scanBus() {
+    printf("Scanning I2C bus...\n");
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        uint8_t data = 0;
+        if (i2c_master_write_to_device(I2C_NUM_0, addr, &data, 0, 100 / portTICK_PERIOD_MS) == ESP_OK) {
+            printf("Found device at 0x%02X\n", addr);
+        }
+    }
+    printf("I2C scan complete.\n");
+}

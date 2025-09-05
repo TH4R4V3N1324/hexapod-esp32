@@ -15,6 +15,7 @@ public:
     bool read(uint8_t addr, uint8_t *data, size_t len);
     bool readRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, uint8_t len);
     bool writeRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, uint8_t len);
+    void scanBus();
 };
 
 extern I2CManager i2cManager; // Global instance
