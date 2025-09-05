@@ -1,6 +1,8 @@
 #include "IMUSensor.h"
 
-// Initialize the sensor
+/*
+@brief Initialize the BMI330 IMU sensor
+*/
 void IMUSensor::init() {
     uint8_t id;
     i2cManager.readRegister(BMI330_ADDR, BMI330_CHIP_ID, &id, 1);
@@ -24,7 +26,15 @@ void IMUSensor::init() {
     i2cManager.writeRegister(BMI330_ADDR, BMI330_GYR_CONF, &gyr_conf, 1);
 }
 
-// Read sensor data
+/*
+@brief Read data from the BMI330 sensor
+@param ax Pointer to store X-axis acceleration
+@param ay Pointer to store Y-axis acceleration
+@param az Pointer to store Z-axis acceleration
+@param gx Pointer to store X-axis gyroscope data
+@param gy Pointer to store Y-axis gyroscope data
+@param gz Pointer to store Z-axis gyroscope data
+*/
 void IMUSensor::BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz) {
     uint8_t data[12];
     if (i2cManager.readRegister(BMI330_ADDR, BMI330_DATA_ACC, data, 12)) {
@@ -40,7 +50,10 @@ void IMUSensor::BMI330_readData(int16_t* ax, int16_t* ay, int16_t* az, int16_t* 
     }
 }
 
-// Update pitch and roll using a complementary filter
+/*
+@brief Update the orientation of the sensor
+@note Uses a complementary filter to combine accelerometer and gyroscope data
+*/
 void IMUSensor::updateOrientation() {
     int16_t ax_raw, ay_raw, az_raw, gx_raw, gy_raw, gz_raw;
     BMI330_readData(&ax_raw, &ay_raw, &az_raw, &gx_raw, &gy_raw, &gz_raw);
