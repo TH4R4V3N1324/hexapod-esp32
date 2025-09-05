@@ -13,7 +13,9 @@ LegContactSensor::LegContactSensor() {
     // Constructor implementation
 }
 
-// Initialize the sensor GPIOs
+/*
+@brief Initialize the leg contact sensors
+*/
 void LegContactSensor::init() {
     // Initialization code
     for (int i = 0; i < sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0]); i++) {
@@ -22,7 +24,11 @@ void LegContactSensor::init() {
     }
 }
 
-// Read the state of a specific leg contact sensor
+/*
+@brief Read the state of a specific leg contact sensor
+@param legNum The leg number to read (0-5)
+@return The state of the leg contact sensor (true = contact, false = no contact)
+*/
 bool LegContactSensor::readState(int legNum) {
     if (legNum < 0 || legNum >= sizeof(LEG_SENSORS) / sizeof(LEG_SENSORS[0])) {
         return false;
