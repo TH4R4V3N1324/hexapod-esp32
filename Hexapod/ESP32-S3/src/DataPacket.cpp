@@ -30,7 +30,9 @@ static void receiveEventEspNOW(const uint8_t *mac, const uint8_t *data, int len)
     SendHexData();
 }
 
-// Function to initialize ESP-NOW communication
+/*
+@brief Initialize ESP-NOW communication
+*/
 void initEspNow() {
     // Initialize WiFi in station mode
     WiFi.mode(WIFI_STA);
@@ -72,7 +74,11 @@ void SendHexData() {
     esp_now_send(controllerMAC, (uint8_t*)&hexPacket, sizeof(HexPacket));
 }
 
-// Returns true if the a ControlPacket command changes
+/*
+@brief Check if the command in the control packet has changed
+@return true if the command or its arguments have changed, false otherwise
+@note Updates the lastCommand and lastArgs if a change is detected
+*/
 bool CommandChanged() {
     bool changed = (controlPacket.command != lastCommand) ||
                    (controlPacket.commandArgs[0] != lastArgs[0]) ||
