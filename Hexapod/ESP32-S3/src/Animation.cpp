@@ -1,6 +1,10 @@
 #include "Animation.h"
 
-//Returns leg configuration based on given gate
+/*
+@brief Get the leg configuration based on the specified gait
+@param gait The gait type
+@return A vector of vectors representing the leg configuration
+*/
 std::vector<std::vector<int>> Animation::GetLegConfig(Gait gait){
     switch (gait){
         case GAIT_TRIPOD:
