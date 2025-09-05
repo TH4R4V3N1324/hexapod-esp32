@@ -11,7 +11,7 @@ void IMUSensor::init() {
     // Reset the sensor
     uint8_t reset = 0xB6;
     i2cManager.writeRegister(BMI330_ADDR, BMI330_CMD, &reset, 1);
-    vTaskDelay(5 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     // Configure power settings
     uint8_t pwr_conf = 0x00;
@@ -19,11 +19,21 @@ void IMUSensor::init() {
     i2cManager.writeRegister(BMI330_ADDR, BMI330_PWR_CONF, &pwr_conf, 1);
     i2cManager.writeRegister(BMI330_ADDR, BMI330_PWR_CTRL, &pwr_ctrl, 1);
 
-    // Configure accelerometer and gyroscope
+    // Accelerometer: ODR=100Hz, bandwidth=normal, high-perf mode
     uint8_t acc_conf = 0x24;
-    uint8_t gyr_conf = 0x24;
     i2cManager.writeRegister(BMI330_ADDR, BMI330_ACC_CONF, &acc_conf, 1);
+
+    // Gyroscope: ODR=100Hz, bandwidth=normal, high-perf mode
+    uint8_t gyr_conf = 0x24;
     i2cManager.writeRegister(BMI330_ADDR, BMI330_GYR_CONF, &gyr_conf, 1);
+
+    // Set accelerometer range to ±4g
+    uint8_t acc_range = 0x05;
+    i2cManager.writeRegister(BMI330_ADDR, BMI330_ACC_RANGE, &acc_range, 1);
+
+    // Set gyroscope range to ±500 dps
+    uint8_t gyr_range = 0x02;
+    i2cManager.writeRegister(BMI330_ADDR, BMI330_GYR_RANGE, &gyr_range, 1);
 }
 
 /*

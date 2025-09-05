@@ -14,6 +14,8 @@
 #define BMI330_PWR_CTRL  0x1B
 #define BMI330_DATA_ACC  0x0C  // start of accel data
 #define BMI330_DATA_GYR  0x12  // start of gyro data
+#define BMI330_ACC_RANGE 0x0F  
+#define BMI330_GYR_RANGE 0x10
 
 class IMUSensor : public SensorBase {
 private:
