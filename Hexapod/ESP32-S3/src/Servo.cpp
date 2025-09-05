@@ -30,7 +30,10 @@ Servo::Servo() {
     for (int i = 0; i < NUM_SERVOS; ++i) servos[i] = defaultServos[i];
 }
 
-// Initialize MCPWM for a specific servo
+/*
+@brief Initialize MCPWM for a specific servo
+@param cfg The ServoConfig for the servo to initialize
+*/
 void Servo::initMCPWM(const ServoConfig& cfg) {
     mcpwm_config_t pwm_config;
     pwm_config.frequency = 50;
@@ -42,7 +45,10 @@ void Servo::initMCPWM(const ServoConfig& cfg) {
     mcpwm_init(cfg.mcpwm.unit, cfg.mcpwm.timer, &pwm_config);
 }
 
-// Initialize LEDC for a specific servo
+/*
+@brief Initialize LEDC for a specific servo
+@param cfg The ServoConfig for the servo to initialize
+*/
 void Servo::initLEDC(const ServoConfig& cfg) {
     static bool timerConfigured = false;
     if (!timerConfigured) {
@@ -73,7 +79,10 @@ void Servo::init() {
     }
 }
 
-// Disable a specific servo
+/*
+@brief Disable a specific servo
+@param servoNum The index of the servo to disable (0-17)
+*/
 void Servo::disable(int servoNum) {
     if (servoNum < 0 || servoNum >= NUM_SERVOS) return;
     if (servos[servoNum].type == SERVO_MCPWM) {
@@ -83,7 +92,11 @@ void Servo::disable(int servoNum) {
     }
 }
 
-// Set the angle for a specific servo
+/*
+@brief Set the angle of a specific servo
+@param servoNum The index of the servo to set (0-17)
+@param angle The target angle in degrees
+*/
 void Servo::setAngle(int servoNum, double angle) {
     if (servoNum < 0 || servoNum >= NUM_SERVOS) return;
     if (servos[servoNum].type == SERVO_MCPWM) {
