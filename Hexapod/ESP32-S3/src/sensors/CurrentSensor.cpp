@@ -1,13 +1,5 @@
 #include "CurrentSensor.h"
 
-// Read INA260 register
-uint16_t CurrentSensor::readRegister(uint8_t reg) {
-    uint8_t data[2];
-    i2cManager.write(INA260_ADDRESS, &reg, 1); // Set register pointer
-    i2cManager.read(INA260_ADDRESS, data, 2);  // Read 2 bytes
-    return (data[0] << 8) | data[1];        // MSB first
-}
-
 // Initialize the sensor
 void CurrentSensor::init() {
     // Configure INA260: 16V, 400mA, continuous mode
@@ -21,37 +13,50 @@ void CurrentSensor::init() {
 
 // Read current in mA
 float CurrentSensor::readCurrent() {
-    uint16_t raw = readRegister(INA260_REG_CURRENT);
-    return raw * 1.25f; // mA
+    uint8_t data[2];
+    if (i2cManager.readRegister(INA260_ADDRESS, INA260_REG_CURRENT, data, 2)) {
+        uint16_t raw = (data[0] << 8) | data[1];
+        return raw * 1.25f; // mA
+    } else {
+        return 0.0f;
+    }
 }
 
 // Read voltage in mV
 float CurrentSensor::readVoltage() {
-    uint16_t raw = readRegister(INA260_REG_BUS_VOLTAGE);
-    return raw * 1.25f; // mV
+    uint8_t data[2];
+    if (i2cManager.readRegister(INA260_ADDRESS, INA260_REG_BUS_VOLTAGE, data, 2)) {
+        uint16_t raw = (data[0] << 8) | data[1];
+        return raw * 1.25f; // mV
+    } else {
+        return 0.0f;
+    }
 }
 
 // Read power in mW
 float CurrentSensor::readPower() {
-    uint16_t raw = readRegister(INA260_REG_POWER);
-    return raw * 10.0f; // mW
+    uint8_t data[2];
+    if (i2cManager.readRegister(INA260_ADDRESS, INA260_REG_POWER, data, 2)) {
+        uint16_t raw = (data[0] << 8) | data[1];
+        return raw * 10.0f; // mW
+    } else {
+        return 0.0f;
+    }
 }
 
 // Set trigger mode
 void CurrentSensor::setTriggerMode(TriggerMode mode) {
-    uint8_t buf[3];
-    buf[0] = INA260_REG_MASK_ENABLE;
-    buf[1] = (mode >> 8) & 0xFF;
-    buf[2] = mode & 0xFF;
-    i2cManager.write(INA260_ADDRESS, buf, 3);
+    uint8_t buf[2];
+    buf[0] = (mode >> 8) & 0xFF;
+    buf[1] = mode & 0xFF;
+    i2cManager.writeRegister(INA260_ADDRESS, INA260_REG_MASK_ENABLE, buf, 2);
 }
 
 // Set trigger threshold
 void CurrentSensor::setTriggerThreshold(float threshold) {
     uint16_t register_value = (uint16_t)(threshold / 1.25f);
-    uint8_t buf[3];
-    buf[0] = INA260_REG_ALERT_LIMIT;
-    buf[1] = (register_value >> 8) & 0xFF;
-    buf[2] = register_value & 0xFF;
-    i2cManager.write(INA260_ADDRESS, buf, 3);
+    uint8_t buf[2];
+    buf[0] = (register_value >> 8) & 0xFF;
+    buf[1] = register_value & 0xFF;
+    i2cManager.writeRegister(INA260_ADDRESS, INA260_REG_ALERT_LIMIT, buf, 2);
 }

@@ -21,8 +21,6 @@ enum TriggerMode {
 };
 
 class CurrentSensor : public SensorBase {
-private:
-    uint16_t readRegister(uint8_t reg);
 public:
     void init() override;
     float readCurrent();
