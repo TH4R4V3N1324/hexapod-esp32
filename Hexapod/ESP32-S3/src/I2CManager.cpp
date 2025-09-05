@@ -24,7 +24,9 @@ void I2CManager::init(uint8_t SDA_pin, uint8_t SCL_pin, i2c_port_t i2c_port) {
     i2c_driver_install(i2c_port, conf.mode, 0, 0, 0);
 }
 
-// Deinitialize I2C
+/*
+@brief Deinitialize I2C
+*/
 void I2CManager::deinit() {
     i2c_driver_delete(port);
 }
@@ -83,7 +85,10 @@ bool I2CManager::writeRegister(uint8_t deviceAddr, uint8_t reg, uint8_t* data, u
     return write(deviceAddr, buf, len + 1);
 }
 
-// Scan the I2C bus for devices and print their addresses
+/*
+@brief Scan the I2C bus for devices and print their addresses
+@note This function attempts to write zero bytes to each address from 1 to 126
+*/
 void I2CManager::scanBus() {
     printf("Scanning I2C bus...\n");
     for (uint8_t addr = 1; addr < 127; addr++) {
