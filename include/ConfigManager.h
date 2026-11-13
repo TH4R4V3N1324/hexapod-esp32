@@ -1,23 +1,24 @@
 #ifndef _CONFIG_MANAGER_H_
 #define _CONFIG_MANAGER_H_
 
-#include <EEPROM.h>
-#include <cstring>
+#include <cstdint>
 
-#define NUM_LEGS 6
-#define NUM_JOINTS 3
-#define EEPROM_SIZE (NUM_LEGS * NUM_JOINTS * sizeof(int16_t))
-
+/**
+ * @brief Calibration offsets set from the controller (CMD_SET_CONFIG), kept in the ESP32's NVS flash
+ * @note Degrees, per leg (gait_core index) and joint (coxa, femur, tibia), added on top of each
+ *       servo's own centre. The centres themselves are stored in the servos (the console's
+ *       calibrate command), so these are only for fine-tuning and are 0 until set.
+*/
 class ConfigManager {
-    private:
-        static int16_t jointOffsets[NUM_LEGS][NUM_JOINTS];
+public:
+    void loadLegOffsets();
+    void SetLegConfig(int legNum, int joint, int offset);
+    const int16_t* getLegOffsets(int legNum) const { return jointOffsets[legNum]; }
+    void clear();
 
-    public:
-        void initEEPROM();
-        void saveLegOffsets();
-        void loadLegOffsets();
-        void SetLegConfig(int legNum, int joint, int offset);
-        const int16_t* getLegOffsets(int legNum) const;
+private:
+    int16_t jointOffsets[6][3] = {};
+    void saveLegOffsets();
 };
 
 extern ConfigManager configManager;

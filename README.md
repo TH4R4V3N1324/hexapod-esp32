@@ -1,395 +1,184 @@
-# Hexapod ESP32
+# hexapod-esp32
 
-Firmware for an ESP32-based six-legged robot controller. The project receives packed motion commands over ESP-NOW, converts joystick and mode input into gait trajectories, solves inverse kinematics for each leg, and drives 18 servos using the ESP32 MCPWM and LEDC peripherals.
+Embedded control firmware for the hexapod on an ESP32, driving 18 **ST3215 serial bus servos**. The
+gait comes from the [hexapod-gait-core](https://github.com/TH4R4V3N1324/hexapod-gait-core) library.
 
-The firmware also supports persistent leg calibration offsets through EEPROM, I²C communication with external controller hardware, and sensor integrations for current monitoring, IMU data, and leg-contact detection.
+Because the ST3215s report their position and load, the gait runs **closed loop**: it starts from
+where the legs really are, and it feels the ground, so **load balancing and terrain adaptation work**.
 
-## Features
+The robot, its build, and how the stacks fit together are documented in
+[hexapod-docs](https://github.com/TH4R4V3N1324/hexapod-docs). This README only covers building
+and working on the firmware.
 
-- Six-leg hexapod motion control
-- 18-servo output: three joints per leg
-- Inverse and forward kinematics
-- Normal walking and strafing modes
-- Tripod, ripple, and wave gaits
-- Smooth startup, shutdown, and return-to-start trajectories
-- Straight, arc, and Bézier trajectory generation
-- Joystick-based translation and rotation control
-- Collision-aware swing trajectory adjustment
-- Per-leg and per-joint calibration offsets
-- EEPROM persistence for calibration data
-- ESP-NOW command and telemetry packets
-- I²C master support
-- Current, IMU, and leg-contact sensor abstractions
-- PlatformIO-based build and upload workflow
+## Quick start
 
-## Hardware and software stack
+You need [PlatformIO](https://platformio.org/) (the VS Code extension or the CLI). The project pins
+the `espressif32` platform at 6.11.0 (Arduino-ESP32 2.0.17).
 
-- **Target MCU:** ESP32
-- **Framework:** Arduino for ESP32
-- **Build system:** PlatformIO
-- **Language:** C++17
-- **Servo peripherals:** ESP32 MCPWM and LEDC
-- **Wireless protocol:** ESP-NOW
-- **Wired protocol:** I²C
-- **External library:** Adafruit INA260 Library
-- **Default PlatformIO board:** `esp32dev`
-
-The project also contains a commented ESP32-S3 board option in `platformio.ini`:
-
-```ini
-;[env:esp32-s3-devkitc-1]
-;board = esp32-s3-devkitc-1
+```sh
+git clone --recursive https://github.com/TH4R4V3N1324/hexapod-esp32.git
+cd hexapod-esp32
+pio run -t upload
+pio device monitor
 ```
+
+`--recursive` matters: gait core is a submodule, and Eigen is a submodule inside it. In an existing
+clone, run `git submodule update --init --recursive`.
+
+**Before powering the servos,** read [Safety](https://github.com/TH4R4V3N1324/hexapod-docs/blob/main/docs/getting-started/safety.md)
+and support the robot so its legs are clear of the ground. New servos must be given their IDs and
+centres first (see [Servo setup](#servo-setup)). Five seconds after boot, once all 18 servos answer,
+the firmware turns their torque on where they are, moves the legs into the seated pose, then stands up.
+
+## Hardware
+
+| | ESP32 pin | Notes |
+| --- | --- | --- |
+| Servo bus RX | GPIO 16 | To the bus adapter's TX. UART2 at 1 Mbaud |
+| Servo bus TX | GPIO 17 | To the bus adapter's RX |
+| IMU SDA | GPIO 21 | ISM330DHCX at `0x6A`, 400 kHz |
+| IMU SCL | GPIO 22 | |
+
+- **Board:** any ESP32 dev board (`esp32dev`).
+- **Servos:** 18 ST3215s, IDs **leg × 10 + joint** (coxa 1, femur 2, tibia 3):
+  11–13 for leg 1 up to 61–63 for leg 6.
+- **Bus adapter:** a Waveshare Bus Servo Adapter (A) turns the ESP32's UART into
+  the servos' half-duplex bus. If yours echoes what it sends back to RX, set `SERVO_ECHO`.
+- **IMU:** mounted with its axes along the body's (x forward, y left, z up). Without it, the robot
+  walks without leveling, and the firmware looks for it again once a second.
+- **Controller:** the handheld controller talks to the ESP32 directly over ESP-NOW.
+
+Share a ground between the ESP32, the adapter and the servo supply. Every pin, address and setting is
+in `include/RobotConfig.h`.
 
 ## Repository layout
 
 ```text
-include/
-  Animation.h          Gait sequencing, modes, startup, and trajectories
-  Calculate.h          Kinematics, coordinate transforms, and trajectory math
-  ConfigManager.h      EEPROM-backed calibration offsets
-  DataPacket.h         Control and telemetry packet definitions
-  Hexapod.h            Main project include aggregation
-  I2CManager.h         ESP32 I²C master wrapper
-  Move.h               Leg-position and servo movement interface
-  Servo.h              MCPWM/LEDC servo abstraction
-  sensors/
-    Sensor.h           Common sensor interface
-    SensorBase.h       Sensor base definitions
-    CurrentSensor.h    INA260 current-sensor interface
-    IMUSensor.h        IMU sensor interface
-    LegContactSensor.h Leg contact sensor interface
-
-src/
-  main.cpp             Firmware setup, command FSM, state FSM, and loop
-  Animation.cpp        Gait definitions and high-level walking behavior
-  Calculate.cpp        Forward/inverse kinematics and trajectory generation
-  ConfigManager.cpp    EEPROM calibration storage
-  DataPacket.cpp       ESP-NOW packet handling and command-change detection
-  I2CManager.cpp       I²C initialization, read/write, and bus scanning
-  Move.cpp             Leg movement through calculated joint angles
-  Servo.cpp            Servo pin mapping and PWM output
-  sensors/
-    CurrentSensor.cpp
-    IMUSensor.cpp
-    LegContactSensor.cpp
-
-platformio.ini         PlatformIO environment and dependency configuration
+include/, src/
+  main.cpp           Entry point, start-up and the 100 Hz control loop
+  RobotConfig.h      Pins, geometry, GaitParams, servo IDs and directions, timings, IMU settings
+  GaitController     Controller packets → GaitEngine inputs; servo feedback in, joint targets out
+  Servos             Joint angles ↔ ST3215 steps, feedback and torque for the 18 servos
+  St3215Bus          Feetech STS protocol on an ESP32 UART
+  Console            Servo setup over USB serial
+  Imu, Ism330dhcx    ISM330DHCX driver and Madgwick filter
+  DataPacket         ESP-NOW packets exchanged with the controller
+  ConfigManager      The controller's calibration offsets, in NVS flash
+external/
+  hexapod-gait-core  Submodule, pinned to a release tag
 ```
 
-## System architecture
+## How it works
 
-The runtime is organized as a command-processing layer followed by a motion-state layer:
+Each 100 Hz tick, `main.cpp` takes the latest packet from the controller, reads the IMU, and calls
+`GaitController::update()`. That reads every servo's position and load in one sync read, gives them
+to the engine as a joint state, runs `GaitEngine::update()`, and writes the 18 joint targets back in
+one sync write. Reading and writing the bus takes about 4 ms of the 10 ms tick. An overrun tick skips
+ahead rather than catching up. The firmware answers each controller packet with a status packet.
+
+Gait settings not set in `robot::gaitParams()` keep gait core's defaults. The only change is
+`stand_on_startup`, since the controller may have no sit button.
+
+### Joint-to-servo mapping
+
+Each servo's centre (2048 steps) is the joint's 0, which is the leg laid out flat:
 
 ```text
-ESP-NOW ControlPacket
-          │
-          ▼
-   DataPacket.cpp
-          │
-          ├── CommandFSM()
-          │     ├── SetGait()
-          │     ├── SetMode()
-          │     ├── SetLegConfig()
-          │     ├── returnToStart()
-          │     └── configuration response
-          │
-          └── StateFSM()
-                ├── Normal()
-                ├── Strafe()
-                ├── Tilt() [not currently active]
-                └── ConfigState()
-                         │
-                         ▼
-                    Animation
-                         │
-                         ▼
-                       Move
-                         │
-              Calculate + ConfigManager
-                         │
-                         ▼
-                     Servo output
+servo° from centre = JOINT_DIRECTION × joint° + controller offset
+steps              = 2048 + servo° × 4096 / 360, clamped to 0–4095
+effort (N·m)       = JOINT_DIRECTION × load / 1000 × 2.94
 ```
 
-At startup, `setup()` initializes I²C on GPIO 20/21, initializes and loads EEPROM calibration offsets, sets the initial body height to `120`, waits five seconds, and runs `Animation::Startup()`.
+`JOINT_DIRECTION` is `{1, 1, −1}`: the tibia servo turns the other way to its joint. The ST3215s
+turn ±180°, so gait core's joint limits are used as they are, and the servos' own angle limits guard
+the end stops.
 
-The main loop checks `CommandChanged()` and processes new commands only once. It then dispatches the active robot mode through `StateFSM()` and advances the motion controller with a one-millisecond delay.
+A servo that misses a reply keeps its last reading, and a warning is printed if
+it stays silent for 0.5 s.
 
-## Motion control
+## Servo setup
 
-### Gaits
+New ST3215s all come as ID 1, and each joint's centre and limits are stored in the servo itself. The
+firmware has a USB serial console for this (115200 baud; `pio device monitor`).
 
-`Animation::GetLegConfig()` defines the supported gait groupings:
+1. **IDs:** connect the servos **one at a time** and run `scan all` to find each one, then
+   `set-id 1 <id>`, for example `set-id 1 23` for leg 2's tibia.
+2. **Check:** with all 18 connected, `scan` should list them all with sensible voltages.
+3. **Directions:** `wiggle <id>` moves a joint +10°, back, −10° and back. If a joint turns the wrong
+   way, flip its entry in `JOINT_DIRECTION`.
+4. **Centres and limits:** `calibrate <id>`. Move the joint through its full travel, press Enter,
+   hold it in its centre pose (coxa straight out, femur level, the foot ball in line with the femur),
+   press Enter, then confirm. The limits go 20 steps inside the ends you reached.
+5. **Start:** `run` restarts the firmware, which starts the gait.
 
-| Gait | Leg groups |
-| --- | --- |
-| Tripod | `{1, 3, 5}` and `{2, 4, 6}` |
-| Ripple | `{3, 6}`, `{2, 4}`, and `{1, 5}` |
-| Wave | `{3}`, `{2}`, `{1}`, `{4}`, `{5}`, and `{6}` |
+Typing any servo command during the 5-second boot wait keeps the gait from starting until `run`.
+While it's running, only `help`, `status`, `stop` and `run` work. `stop` turns the torque off, so
+**the legs drop**. `help` lists everything, including `move`, `limp`, `centre`, `offset` and `limits`.
 
-Gait changes are deferred until the current return-to-start sequence completes. This prevents an active gait from being replaced in the middle of a phase transition.
+## Controller interface
 
-### Modes
-
-The state machine currently includes:
-
-- `MODE_NORMAL` — forward/backward walking with turning
-- `MODE_STRAFE` — lateral movement with rotation
-- `MODE_TILT` — reserved; implementation is currently commented out
-- `MODE_CONFIG` — moves legs toward a configuration position
-
-### Trajectories
-
-The kinematics layer provides:
-
-- Straight trajectories for direct interpolation
-- Arc trajectories with sinusoidal lift
-- Bézier trajectories with elevated control points
-
-Swing legs use Bézier trajectories to lift the foot during a step. Stance legs use straight trajectories. `Animation::GenerateTrajectories()` converts target positions into body-frame coordinates, performs a 50 mm collision-distance check, then converts targets back into each leg's coordinate frame.
-
-### Kinematics
-
-`Calculate::angle()` implements inverse kinematics for the coxa, femur, and tibia joints. `Calculate::position()` performs forward kinematics. Leg-specific translation offsets, mirrored-leg handling, rotation angles, and joystick direction transformations are applied through the coordinate-frame helpers.
-
-The default link lengths are defined in `Calculate.h` as `coxaLength`, `femurLength`, and `tibiaLength`. Check that file before changing the physical geometry of the robot.
-
-## Servo output
-
-The firmware controls 18 servos. The default mapping in `src/Servo.cpp` uses:
-
-- 12 MCPWM servos on GPIOs `4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22`
-- 6 LEDC servos on GPIOs `23, 25, 26, 27, 32, 33`
-- 50 Hz PWM for both servo backends
-- A nominal pulse range of approximately 1000–2000 µs
-
-Each leg maps to three servo channels: coxa, femur, and tibia. `Move::Position()` calculates joint angles, applies calibration offsets, and writes the resulting angles through `Servo::setAngle()`.
-
-> Confirm the pin assignments, servo direction conventions, and mechanical limits before powering a connected robot.
-
-## Communication
-
-### ESP-NOW
-
-`src/DataPacket.cpp` receives `ControlPacket` messages through ESP-NOW. Incoming packets are accepted only when their length equals `sizeof(ControlPacket)`. After updating the control state, the firmware sends the current `HexPacket` back to the configured controller MAC address.
-
-The current controller peer address is:
+The packets in `include/DataPacket.h` travel over ESP-NOW, and only packets from `CONTROLLER_MAC` in `RobotConfig.h` are accepted. The
+firmware prints the address of any other sender, so you can copy it in.
 
 ```cpp
-uint8_t controllerMAC[6] = {
-    0x80, 0x65, 0x99, 0xE9, 0x6F, 0x56
+struct ControlPacket {           // controller → robot
+    int16_t joystick1X, joystick1Y, joystick2X, joystick2Y;  // ±128, X right, Y forward
+    int16_t currentHeight;       // body height in mm, 0 = unchanged
+    Command command;
+    int16_t commandArgs[3];
+};
+
+struct HexPacket {               // robot → controller, in reply to each packet
+    int16_t legConfigs[3];       // calibration offsets requested with CMD_REQUEST_CONFIG
+    int16_t currentHeight;       // mm
+    int8_t currentPhase;         // always 0
+    Gait currentGait;
+    Mode currentMode;
 };
 ```
 
-ESP-NOW encryption is disabled in the current implementation. Update the peer address and security configuration before deploying to a production robot.
-
-### I²C
-
-`I2CManager` wraps the ESP-IDF I²C master driver and provides:
-
-- `init()` and `deinit()`
-- Raw device reads and writes
-- Register reads and writes
-- I²C bus scanning through `scanBus()`
-
-The application initializes I²C with:
-
-```cpp
-i2cManager.init(20, 21);
-```
-
-This selects GPIO 20 for SDA and GPIO 21 for SCL. The actual bus frequency and timeout are defined in `I2CManager.h`.
-
-## Packet processing
-
-The firmware keeps global `ControlPacket` and `HexPacket` instances in `DataPacket.cpp`.
-
-`CommandChanged()` compares the current command and its three arguments against the previous values. The command is processed only when one of those fields changes.
-
-The command dispatcher supports:
-
-| Command | Action |
+| Command | Arguments |
 | --- | --- |
-| `CMD_SET_GAIT` | Selects the gait from `commandArgs[0]` |
-| `CMD_SET_MODE` | Selects the active mode from `commandArgs[0]` |
-| `CMD_SET_CONFIG` | Updates a leg/joint calibration offset |
-| `CMD_HOME_STANCE` | Returns the robot to its start position |
-| `CMD_REQUEST_CONFIG` | Copies calibration offsets into `HexPacket` |
+| `CMD_SET_GAIT` | `[0]` gait |
+| `CMD_SET_MODE` | `[0]` mode. `MODE_CONFIG` (every joint to 0 + offset: the legs laid out flat) is handled here, not by the engine |
+| `CMD_SET_CONFIG` | `[0]` leg 0–5, `[1]` joint 0–2, `[2]` offset in degrees (clamped to ±60) |
+| `CMD_HOME_STANCE` | Stand up |
+| `CMD_REQUEST_CONFIG` | `[0]` leg; its offsets are returned in `legConfigs` |
+| `CMD_SIT` | `[0]` 1 sit, 0 stand |
 
-The exact packed field layout is defined in `include/DataPacket.h`. Keep the packet definitions synchronized with the transmitter firmware.
+A command is applied once, when it or its arguments change. `Gait` and `Mode` values equal
+gait-core's (checked with `static_assert`). If no packet arrives for 200 ms, the sticks count as
+centred, so the robot stops walking. New commands must be appended so existing values don't change.
 
-## Persistent calibration
+The `CMD_SET_CONFIG` offsets are kept in NVS flash and added on top of each servo's own centre. They're
+for fine-tuning from the controller; the centres themselves are set with `calibrate`. `offsets` on the console shows them, and `offsets clear` resets them.
 
-`ConfigManager` stores six legs × three joints of `int16_t` offsets in ESP32 EEPROM.
+## Development notes
 
-Calibration values are clamped to the range `-60` through `60` before being saved:
+- **Gait changes belong in hexapod-gait-core**, not here. To update it, check
+  out a newer tag in `external/hexapod-gait-core`, rebuild, and commit the submodule.
+- **Include gait core before Arduino.** Arduino's `binary.h` defines macros such as `B1` that break
+  Eigen if Eigen is parsed after it. Each `.cpp` includes a header that pulls in gait core (such as
+  `RobotConfig.h`) before any Arduino header. Arduino also defines `DEG_TO_RAD`, `RAD_TO_DEG` and
+  `PI`, so don't use those names.
+- **No heap in the loop:** `St3215Bus` uses fixed buffers, and gait core doesn't allocate while
+  running.
+- **Packet layout:** `DataPacket.h` must stay byte-compatible with the controller.
 
-```cpp
-configManager.SetLegConfig(legNum, joint, offset);
-```
+### Troubleshooting
 
-The startup sequence calls:
-
-```cpp
-configManager.initEEPROM();
-configManager.loadLegOffsets();
-```
-
-Offsets are applied by `Calculate::ApplyOffsets()` immediately before servo angles are written.
-
-## Sensors
-
-The sensor layer is split into interfaces under `include/sensors/` and implementations under `src/sensors/`:
-
-- `CurrentSensor` — current and power monitoring using the Adafruit INA260 library
-- `IMUSensor` — inertial measurement support
-- `LegContactSensor` — leg contact detection
-- `Sensor` and `SensorBase` — shared sensor abstractions
-
-The PlatformIO dependency is declared in `platformio.ini`:
-
-```ini
-lib_deps = adafruit/Adafruit INA260 Library
-```
-
-## Building and uploading
-
-### Prerequisites
-
-Install:
-
-- Git
-- PlatformIO CLI or PlatformIO for VS Code
-- An ESP32 development board compatible with the selected PlatformIO board definition
-- A suitable USB cable and serial drivers
-- A separate power supply appropriate for the servo system
-
-### Build
-
-```bash
-git clone https://github.com/TH4R4V3N1324/hexapod-esp32.git
-cd hexapod-esp32
-pio run
-```
-
-The default environment is:
-
-```text
-Environment: esp32dev
-Framework:   Arduino
-C++ standard: GNU++17
-```
-
-### Upload
-
-```bash
-pio run --target upload
-```
-
-If PlatformIO does not detect the board automatically, specify the upload port:
-
-```bash
-pio run --target upload --upload-port PORT
-```
-
-Examples:
-
-```bash
-pio run --target upload --upload-port COM4
-pio run --target upload --upload-port /dev/ttyUSB0
-```
-
-### Serial monitor
-
-```bash
-pio device monitor --baud 115200
-```
-
-## First boot and safety checklist
-
-The firmware waits five seconds during `setup()` before starting the startup motion sequence. On first boot:
-
-1. Keep the robot raised or mechanically supported.
-2. Confirm the servo power supply is disconnected or current-limited.
-3. Verify all servo GPIO assignments.
-4. Confirm leg numbering and mirrored-leg configuration.
-5. Confirm the controller MAC address.
-6. Check I²C wiring on GPIO 20 and GPIO 21.
-7. Test one movement mode at a time.
-8. Verify that calibration offsets are correct before loading the robot.
-
-`Animation::Startup()` first performs a shutdown/deactivation sequence on its first invocation, then interpolates all legs from the home position to their configured start positions.
-
-## Troubleshooting
-
-### The project does not compile
-
-- Confirm that PlatformIO is using the `esp32dev` environment.
-- Confirm that the ESP32 Arduino framework is installed.
-- Make sure the project is compiled as C++17; this is configured by `-std=gnu++17`.
-- Check that the `include/sensors` include path is active.
-
-### ESP-NOW commands are not received
-
-- Verify the transmitter uses the same packed `ControlPacket` layout.
-- Confirm the controller MAC address in `src/DataPacket.cpp`.
-- Ensure both devices use a compatible Wi-Fi channel.
-- Confirm ESP-NOW initialization succeeds and inspect serial output.
-
-### The robot moves unpredictably
-
-- Verify the leg numbering and mirrored-leg settings in `Calculate.h`.
-- Check coxa, femur, and tibia lengths against the physical robot.
-- Confirm the servo GPIO mapping in `src/Servo.cpp`.
-- Clear or update invalid EEPROM calibration offsets.
-- Test with the robot lifted off the ground.
-
-### Servos do not move
-
-- Verify the servo power supply separately from ESP32 USB power.
-- Check that the configured GPIOs are connected to the intended servo channels.
-- Confirm the servo signal ground is shared with the ESP32 ground.
-- Check the generated angles and calibration offsets.
-- Confirm the selected servo backend matches the configured channel.
-
-### I²C devices are not detected
-
-Call `i2cManager.scanBus()` after initialization and inspect the serial output. Check SDA/SCL wiring, pull-ups, device addresses, and the bus frequency defined in `I2CManager.h`.
-
-## Development workflow
-
-1. Make changes in `include/` and `src/`.
-2. Build with PlatformIO:
-
-   ```bash
-   pio run
-   ```
-
-3. Test communication and motion with the robot mechanically supported.
-4. Verify packet sizes and command behavior with the transmitter firmware.
-5. Test calibration persistence after power cycling.
-6. Document hardware or pin-mapping changes in the pull request.
-
-## Known implementation notes
-
-- `MODE_TILT` is present in the state machine but its call is currently commented out.
-- ESP-NOW encryption is disabled.
-- The peer MAC address is hard-coded.
-- The default upload target is `esp32dev`; ESP32-S3 support is present only as commented configuration.
-- Motion code uses fixed trajectory resolutions in several animation routines, commonly `50` steps.
-- `Calculate::GenerateArcTrajectory()` terminates the process for invalid resolutions rather than returning an error.
-- Calibration indexing assumes valid leg and joint indices; validate external command data before using it in safety-critical deployments.
-- This repository does not currently include a license file.
+- **`fatal error: Eigen/Dense: No such file or directory`:** the nested submodule is missing. Run
+  `git submodule update --init --recursive`.
+- **Errors inside Eigen such as `expected unqualified-id before numeric constant`:** a source file
+  includes an Arduino header before gait core. See above.
+- **The gait never starts, and the monitor lists missing servos:** check the servo power, the
+  adapter's TX and RX against GPIO 16 and 17, and the IDs with `scan all`.
+- **The robot ignores the controller:** check the monitor for `Ignored a packet from ...` and put
+  that address in `CONTROLLER_MAC`.
+- **The robot doesn't level:** check the IMU is at `0x6A`, on GPIO 21 and 22, and mounted with its
+  axes along the body's.
 
 ## License
 
-No license file is currently present. Unless a license is added, the source should be treated as all rights reserved.
-
-## Contributing
-
-1. Create a feature branch.
-2. Keep packet definitions compatible with the controller and receiver projects.
-3. Build the firmware with PlatformIO.
-4. Test on hardware with the robot supported safely.
-5. Include board, wiring, and test details in pull requests.
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). hexapod-gait-core is Apache-2.0; Eigen,
+inside it, is MPL-2.0.

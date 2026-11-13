@@ -1,11 +1,10 @@
 #ifndef _DATAPACKET_H_
 #define _DATAPACKET_H_
 
-#include <stdint.h>
-#include <stdio.h>
-#include <WiFi.h>
-#include <esp_now.h>
+#include <cstdint>
 
+// Gait and Mode wire values match gait_core's; MODE_CONFIG is handled by the firmware itself.
+// New values must be appended so existing ones don't change.
 enum Gait : uint8_t {
     GAIT_TRIPOD,
     GAIT_RIPPLE,
@@ -26,13 +25,13 @@ enum Command : uint8_t {
     CMD_SET_GAIT,
     CMD_SET_MODE,
     CMD_SET_CONFIG,
-    CMD_HOME_STANCE,
-	CMD_REQUEST_CONFIG
+    CMD_HOME_STANCE,     // stand up; the feet return to their stance by themselves when idle
+    CMD_REQUEST_CONFIG,
+    CMD_SIT              // commandArgs[0]: 1 sit down, 0 stand up
 };
 
-// Define the data structure with no padding
 #pragma pack(push, 1)
-// Define ControlPacket struct
+// Controller -> robot
 struct ControlPacket {
     int16_t joystick1X;
     int16_t joystick1Y;
@@ -43,7 +42,7 @@ struct ControlPacket {
     int16_t commandArgs[3];
 };
 
-// Define HexPacket struct
+// Robot -> controller
 struct HexPacket {
     int16_t legConfigs[3];
     int16_t currentHeight;
@@ -56,12 +55,36 @@ struct HexPacket {
 extern ControlPacket controlPacket;
 extern HexPacket hexPacket;
 
-// Mac address for hexapod esp32
-extern uint8_t controllerMAC[6];
+/**
+ * @brief Start ESP-NOW, listening for robot::CONTROLLER_MAC
+ * @return false if ESP-NOW couldn't start
+*/
+bool InitEspNow();
 
-void initEspNow();
-bool controlPacketChanged(const ControlPacket& a, const ControlPacket& b);
+/**
+ * @brief Copy the latest packet from the controller into controlPacket
+ * @return true if a new packet had arrived since the last call
+*/
+bool ReadInputData();
+
+/**
+ * @brief Milliseconds since the last packet from the controller (UINT32_MAX if none yet)
+*/
+uint32_t MsSinceLastPacket();
+
+/**
+ * @brief Send hexPacket to the controller
+*/
 void SendHexData();
+
+/**
+ * @brief true once each time controlPacket's command or its arguments change
+*/
 bool CommandChanged();
+
+/**
+ * @brief Print the address of a sender that isn't the controller, if one has been heard from
+*/
+void ReportUnknownSender();
 
 #endif
