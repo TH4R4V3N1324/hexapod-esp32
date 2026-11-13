@@ -26,12 +26,6 @@ public:
     explicit GaitController(Servos& servos);
 
     /**
-     * @brief Hold the servos where they are, turn their torque on and give the engine the pose
-     * @return false if a servo didn't reply (nothing moves then)
-    */
-    bool begin(uint64_t nowUs);
-
-    /**
      * @brief Act on a command from the controller (call when it changes)
     */
     void handleCommand(const ControlPacket& packet);
@@ -55,6 +49,16 @@ public:
      * @brief Fill in the telemetry sent back to the controller
     */
     void fillTelemetry(HexPacket& packet) const;
+
+    /**
+     * @brief Sit down, as CMD_SIT 1 does (for a low battery)
+    */
+    gait_core::CommandResult sitDown() { return engine.sit(true); }
+    /**
+     * @brief Sit down, then turn the servo power off once seated (CMD_POWER_DOWN). A stand command
+     *        powers them up again.
+    */
+    gait_core::CommandResult powerDown();
 
     const gait_core::GaitEngine& gait() const { return engine; }
 

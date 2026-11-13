@@ -2,6 +2,7 @@
 #include "GaitController.h"
 #include "RobotConfig.h"
 #include "Servos.h"
+#include "hexapod_behaviour/battery_monitor.hpp"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -12,51 +13,60 @@
 #include "Console.h"
 #include "DataPacket.h"
 #include "Imu.h"
+#include "PowerMonitor.h"
+
+using hexapod_behaviour::BatteryLevel;
 
 namespace {
 
 enum class State {
-    BootWait,       // BOOT_DELAY_MS after boot, so you can stand clear
-    FindingServos,  // waiting for all 18 servos to answer
-    Running,        // the gait owns the servos
-    Setup,          // the console has the servos; 'run' restarts into the gait
+    Running,  // the gait owns the servos (servo power off until the first stand command)
+    Setup,    // the console has the servos; 'run' restarts into the gait
 };
 
 Servos servos;
 GaitController controller(servos);
 Imu imu(Wire, robot::IMU_ADDRESS);
+PowerMonitor power(Wire);
+hexapod_behaviour::BatteryMonitor battery(PowerMonitor::NUM_HUBS, robot::batteryParams());
 Console console(servos);
 
-State state = State::BootWait;
-uint32_t bootMs = 0;
-uint32_t nextServoCheckMs = 0;
-
+State state = State::Running;
 uint64_t lastTickUs = 0;
 uint64_t nextTickUs = 0;
+uint64_t nextBatteryUs = 0;
 uint32_t overruns = 0;
 uint32_t longestTickUs = 0;
 
-const char* stateName() {
-    switch (state) {
-        case State::BootWait: return "waiting after boot";
-        case State::FindingServos: return "waiting for all 18 servos";
-        case State::Running: return "running the gait";
-        case State::Setup: return "setup (gait stopped; run starts it)";
+const char* levelName(gait_core::LogLevel level) {
+    switch (level) {
+        case gait_core::LogLevel::Debug: return "DEBUG";
+        case gait_core::LogLevel::Info: return "INFO";
+        case gait_core::LogLevel::Warn: return "WARN";
+        case gait_core::LogLevel::Error: return "ERROR";
     }
     return "";
 }
 
-void printStatus() {
-    Serial.printf("State: %s\n", stateName());
-    const uint32_t sinceController = MsSinceLastPacket();
-    if (sinceController == UINT32_MAX) {
-        Serial.println("Controller: nothing received yet");
-    } else {
-        Serial.printf("Controller: last packet %lu ms ago\n", static_cast<unsigned long>(sinceController));
+const char* batteryLevelName(BatteryLevel level) {
+    switch (level) {
+        case BatteryLevel::Ok: return "OK";
+        case BatteryLevel::Warning: return "low";
+        case BatteryLevel::Critical: return "critical";
     }
-    Serial.printf("IMU: %s\n", imu.isReady() ? "ready" : "not found (walking without leveling)");
+    return "";
+}
+
+gait_core::Timestamp stamp(uint64_t nowUs) {
+    return static_cast<gait_core::Timestamp>(nowUs) * 1000;
+}
+
+void printStatus() {
+    const gait_core::GaitEngine& gait = controller.gait();
     if (state == State::Running) {
-        const gait_core::GaitEngine& gait = controller.gait();
+        Serial.printf("State: running the gait, servo power %s, %d of %d servos answering\n",
+                      gait.servoPower() ? "on" : "off (stand from the controller to power up)",
+                      servos.answeringCount(), Servos::NUM_SERVOS);
         const gait_core::GaitConfig& config = gait.gaitConfig();
         Serial.printf("Gait: %s, %s mode, %s, height %.0f mm\n", gait_core::GaitConfig::gaits[config.currentGait].name,
                       gait_core::GaitConfig::modes[config.currentMode].name, gait.seated() ? "seated" : "standing",
@@ -64,39 +74,68 @@ void printStatus() {
         Serial.printf("Loop: longest tick %lu us of %lu, %lu overruns\n", static_cast<unsigned long>(longestTickUs),
                       static_cast<unsigned long>(robot::LOOP_PERIOD_US), static_cast<unsigned long>(overruns));
         longestTickUs = 0;
+    } else {
+        Serial.println("State: setup (gait stopped; run starts it)");
+    }
+
+    const uint32_t sinceController = MsSinceLastPacket();
+    if (sinceController == UINT32_MAX) {
+        Serial.println("Controller: nothing received yet");
+    } else {
+        Serial.printf("Controller: last packet %lu ms ago\n", static_cast<unsigned long>(sinceController));
+    }
+    Serial.printf("IMU: %s\n", imu.isReady() ? "ready" : "not found (walking without leveling)");
+
+    for (int hub = 0; hub < PowerMonitor::NUM_HUBS; ++hub) {
+        if (power.present(hub)) {
+            Serial.printf("Power, %s hub: %.2f V, %.2f A\n", robot::LEG_HUB_NAMES[hub], power.voltage(hub),
+                          power.current(hub));
+        } else {
+            Serial.printf("Power, %s hub: INA226 not found at 0x%02X\n", robot::LEG_HUB_NAMES[hub],
+                          robot::LEG_HUB_ADDRESSES[hub]);
+        }
+    }
+    bool hasData = false;
+    float lowest = 0;
+    for (int hub = 0; hub < battery.monitors(); ++hub) {
+        const hexapod_behaviour::PowerReading& reading = battery.reading(hub);
+        if (!battery.stale(hub, stamp(esp_timer_get_time())) && (!hasData || reading.voltage < lowest)) {
+            lowest = reading.voltage;
+            hasData = true;
+        }
+    }
+    if (hasData) {
+        Serial.printf("Battery: %s, %.2f V (filtered)\n", batteryLevelName(battery.level()), lowest);
+    } else {
+        Serial.println("Battery: no readings");
     }
 }
 
 /**
- * @brief Start the gait once every servo answers
+ * @brief Pass the leg hubs' readings to the battery monitor, and act on what it decides
+ * @note Critical sits the robot down and, with power_off, turns the servos off once seated
 */
-void findServos() {
-    if (static_cast<int32_t>(millis() - nextServoCheckMs) < 0) {
-        return;
-    }
-    nextServoCheckMs = millis() + robot::SERVO_RETRY_MS;
-
-    std::array<uint8_t, Servos::NUM_SERVOS> missing;
-    const int count = servos.findMissing(missing);
-    if (count > 0) {
-        Serial.printf("[servos] %d of 18 missing:", count);
-        for (int i = 0; i < count; ++i) {
-            Serial.printf(" %d", missing[i]);
+void updatePower(uint64_t now) {
+    if (power.update(now)) {
+        for (int hub = 0; hub < PowerMonitor::NUM_HUBS; ++hub) {
+            if (power.fresh(hub)) {
+                // The battery monitor takes current as negative while discharging
+                battery.onReading(hub, power.voltage(hub), -power.current(hub), stamp(now));
+            }
         }
-        Serial.println(count == Servos::NUM_SERVOS ? ". Is the servo power on? (scan all finds other IDs)"
-                                                   : ". (scan all finds other IDs)");
+    }
+    if (state != State::Running || now < nextBatteryUs) {
         return;
     }
-
-    const uint64_t now = esp_timer_get_time();
-    if (!controller.begin(now)) {
-        Serial.println("[servos] A servo stopped replying while starting; trying again");
-        return;
+    nextBatteryUs = now + robot::BATTERY_UPDATE_PERIOD_US;
+    const hexapod_behaviour::BatteryStatus status = battery.update(stamp(now));
+    if (status.sit) {
+        const gait_core::CommandResult result = status.powerOff ? controller.powerDown() : controller.sitDown();
+        battery.sitRequested();
+        if (!result.success) {
+            Serial.printf("[battery] Couldn't sit down: %s\n", result.message);
+        }
     }
-    Serial.println("[servos] All 18 found, torque on. Starting the gait.");
-    state = State::Running;
-    lastTickUs = now;
-    nextTickUs = now + robot::LOOP_PERIOD_US;
 }
 
 /**
@@ -132,19 +171,27 @@ void tick(uint64_t now) {
 void setup() {
     Serial.begin(115200);
     configManager.loadLegOffsets();
-    servos.begin();
+    servos.begin();  // servo power off
     Wire.begin(robot::I2C_SDA_PIN, robot::I2C_SCL_PIN, robot::I2C_FREQUENCY);
-    Wire.setTimeOut(3);  // ms, so a missing IMU can't stall the gait
+    Wire.setTimeOut(3);  // ms, so a missing sensor can't stall the gait
     InitEspNow();
 
+    battery.log = [](gait_core::LogLevel level, const char* message) {
+        Serial.printf("[battery %s] %s\n", levelName(level), message);
+    };
     console.printStatus = printStatus;
-    bootMs = millis();
-    Serial.printf("\nhexapod-esp32: the gait starts in %lu s. Type help for servo setup.\n",
-                  static_cast<unsigned long>(robot::BOOT_DELAY_MS / 1000));
+
+    lastTickUs = esp_timer_get_time();
+    nextTickUs = lastTickUs + robot::LOOP_PERIOD_US;
+    Serial.printf("\nhexapod-esp32: %s Type help for servo setup.\n",
+                  robot::SERVO_ENABLE_PIN >= 0 ? "servo power is off until a stand command from the controller."
+                                               : "the servos are powered; startup seats the robot.");
 }
 
 void loop() {
-    switch (console.poll(state == State::Running)) {
+    // The console may take the servos whenever the gait isn't powering them
+    const bool gaitOwnsServos = state == State::Running && controller.gait().servoPower();
+    switch (console.poll(gaitOwnsServos)) {
         case ConsoleRequest::StopGait:
             servos.limp();
             state = State::Setup;
@@ -153,7 +200,7 @@ void loop() {
         case ConsoleRequest::EnterSetup:
             if (state != State::Setup) {
                 state = State::Setup;
-                Serial.println("Setup: the gait won't start until you type run.");
+                Serial.println("Setup: the gait is stopped until you type run.");
             }
             break;
         case ConsoleRequest::None:
@@ -161,41 +208,28 @@ void loop() {
     }
     ReportUnknownSender();
 
-    switch (state) {
-        case State::BootWait:
-            if (millis() - bootMs >= robot::BOOT_DELAY_MS) {
-                state = State::FindingServos;
-            }
-            break;
-
-        case State::FindingServos:
-            findServos();
-            break;
-
-        case State::Running: {
-            uint64_t now = esp_timer_get_time();
-            if (now < nextTickUs) {
-                if (nextTickUs - now > 1500) {
-                    delay(1);
-                }
-                return;
-            }
-            tick(now);
-            const uint32_t took = static_cast<uint32_t>(esp_timer_get_time() - now);
-            longestTickUs = std::max(longestTickUs, took);
-
-            nextTickUs += robot::LOOP_PERIOD_US;
-            // An overrun tick skips ahead rather than running the missed ones back to back
-            now = esp_timer_get_time();
-            if (nextTickUs < now) {
-                ++overruns;
-                nextTickUs = now + robot::LOOP_PERIOD_US;
-            }
-            return;
-        }
-
-        case State::Setup:
-            break;
+    uint64_t now = esp_timer_get_time();
+    updatePower(now);
+    if (state != State::Running) {
+        delay(1);
+        return;
     }
-    delay(1);
+
+    if (now < nextTickUs) {
+        if (nextTickUs - now > 1500) {
+            delay(1);
+        }
+        return;
+    }
+    tick(now);
+    const uint32_t took = static_cast<uint32_t>(esp_timer_get_time() - now);
+    longestTickUs = std::max(longestTickUs, took);
+
+    nextTickUs += robot::LOOP_PERIOD_US;
+    // An overrun tick skips ahead rather than running the missed ones back to back
+    now = esp_timer_get_time();
+    if (nextTickUs < now) {
+        ++overruns;
+        nextTickUs = now + robot::LOOP_PERIOD_US;
+    }
 }

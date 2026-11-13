@@ -14,8 +14,16 @@
 using ServoDegrees = std::array<float, 3>;
 
 /**
- * @brief The 18 leg servos: ST3215s on one serial bus, IDs leg x 10 + joint (robot::servoId)
- * @note Legs are indexed like gait_core (0 = front right, clockwise). Servo n in the arrays is leg n / 3, joint n % 3.
+ * @brief The 18 leg servos: ST3215s on one serial bus, IDs leg x 10 + joint (robot::servoId), and
+ *        their power switch (the leg hubs' SERVO_EN)
+ * @note Legs are indexed like gait_core (0 = front right, clockwise). Servo n in the arrays is
+ *       leg n / 3, joint n % 3.
+ *
+ *       Each servo is either answering or not. Unpowered servos (SERVO_EN low, kill loop open)
+ *       don't answer, and a leg with one that isn't is reported to the engine as missing. Only one
+ *       silent servo is tried each read, since each costs a reply timeout. A servo that starts
+ *       answering again is held where it is with torque on, ignoring the target it had before,
+ *       until a new one arrives, so it never jumps to a stale target.
 */
 class Servos {
 public:
@@ -24,34 +32,31 @@ public:
     Servos();
 
     /**
-     * @brief Open the servo bus
+     * @brief Open the servo bus, with servo power off
     */
     void begin();
 
     /**
-     * @brief Ping every leg servo
-     * @param[out] missing The IDs that didn't reply
-     * @return How many are missing
+     * @brief Switch servo power (SERVO_EN) on or off
+     * @note The servos need a moment to boot after it goes on; read() picks them up as they answer.
+     *       Does nothing without an enable line (robot::SERVO_ENABLE_PIN -1): they're always on.
     */
-    int findMissing(std::array<uint8_t, NUM_SERVOS>& missing);
+    void setPower(bool on);
+    /**
+     * @brief Switch servo power on and wait for the servos to boot (for the console)
+    */
+    void powerOnAndWait();
+    bool powered() const { return isPowered; }
 
     /**
-     * @brief Hold every servo where it is and turn its torque on, so the legs don't jump
-     * @param[out] held The servo angles they're held at (deg, before calibration offsets)
-     * @return false if a servo didn't reply (nothing is turned on then)
-    */
-    bool holdCurrentPose(std::array<ServoDegrees, gait_core::NUM_LEGS>& held);
-
-    /**
-     * @brief Read every servo's position and load as a joint state for the engine
-     * @note A servo that doesn't reply keeps its last reading; a warning is
-     *       printed if it stays silent.
+     * @brief Read every answering servo's position and load, and try one silent one, as a joint state
     */
     void read(gait_core::JointFeedback& feedback, uint64_t nowUs);
 
     /**
-     * @brief Move every servo, in one packet, adding the controller's calibration offsets
+     * @brief Move every answering servo, in one packet, adding the controller's calibration offsets
      * @param[in] degrees Servo angles before calibration offsets
+     * @note Servos that aren't answering, or are holding until a new target arrives, are skipped
     */
     void write(const std::array<ServoDegrees, gait_core::NUM_LEGS>& degrees);
 
@@ -59,6 +64,8 @@ public:
      * @brief Turn the torque off on every servo on the bus. The legs will drop.
     */
     void limp();
+
+    int answeringCount() const;
 
     /**
      * @brief gait_core joint angles (rad) to servo angles (deg from centre), before calibration offsets
@@ -74,14 +81,24 @@ public:
 
     St3215Bus& bus() { return servoBus; }
     const std::array<uint8_t, NUM_SERVOS>& ids() const { return servoIds; }
-    const St3215State& state(int servo) const { return states[servo]; }
 
 private:
+    struct Joint {
+        bool answering = false;
+        int missed = 0;          // replies missed in a row
+        bool holding = false;    // answering again: held where it is until a new target arrives
+        int heldTarget = -1;     // the target (steps) it had when it started answering again
+    };
+
     St3215Bus servoBus;
     std::array<uint8_t, NUM_SERVOS> servoIds{};
     std::array<St3215State, NUM_SERVOS> states{};
-    std::array<uint64_t, NUM_SERVOS> lastReplyUs{};
-    uint64_t lastWarningUs = 0;
+    std::array<Joint, NUM_SERVOS> joints{};
+    std::array<int, NUM_SERVOS> targets{};  // last target written (steps), -1 for none yet
+    int nextProbe = 0;                      // which silent servo to try next
+    bool isPowered = false;
+    uint64_t lastNoReplyWarningUs = 0;
+    uint64_t lastErrorWarningUs = 0;
 
     float withOffset(int servo, float degrees) const;
     float withoutOffset(int servo, float degrees) const;

@@ -39,6 +39,7 @@ const char* levelName(gait_core::LogLevel level) {
         case gait_core::LogLevel::Debug: return "DEBUG";
         case gait_core::LogLevel::Info: return "INFO";
         case gait_core::LogLevel::Warn: return "WARN";
+        case gait_core::LogLevel::Error: return "ERROR";
     }
     return "";
 }
@@ -55,14 +56,8 @@ GaitController::GaitController(Servos& servos)
     };
 }
 
-bool GaitController::begin(uint64_t nowUs) {
-    if (!servos.holdCurrentPose(servoOutput)) {
-        return false;
-    }
-    // From the measured pose, the engine's startup moves the legs to the seated pose, then stands up
-    servos.read(feedback, nowUs);
-    engine.onJointStates(feedback);
-    return true;
+gait_core::CommandResult GaitController::powerDown() {
+    return engine.powerDown();
 }
 
 void GaitController::handleCommand(const ControlPacket& packet) {
@@ -114,6 +109,10 @@ void GaitController::handleCommand(const ControlPacket& packet) {
 
         case CMD_SIT:
             engine.sit(args[0] != 0);
+            break;
+
+        case CMD_POWER_DOWN:
+            engine.powerDown();
             break;
 
         case CMD_NONE:
@@ -203,9 +202,22 @@ void GaitController::onImu(float roll, float pitch, float yaw, uint64_t nowUs) {
 /**
  * @brief Write the engine's joint targets, or the calibration pose in MODE_CONFIG
  * @note Moving into or out of the calibration pose, the servos slew there at CONFIG_SLEW_DEG_PER_S
- *       rather than jumping. Before the engine's first output the servos hold where they are.
+ *       rather than jumping.
+ *
+ *       Servo power (SERVO_EN) follows the engine. With it off, or while the engine waits for joint
+ *       states, nothing is written, and Servos holds any servo that starts answering where it is.
 */
 void GaitController::writeServos(const gait_core::GaitOutput& output, Scalar dt) {
+    servos.setPower(output.servoPower);
+    if (!output.servoPower && configMode) {
+        // The engine starts again from the measured pose after power comes back; so does this
+        configMode = false;
+        blending = false;
+    }
+    if (!output.commanded) {
+        return;
+    }
+
     std::array<ServoDegrees, NUM_LEGS> target = servoOutput;
     if (configMode) {
         for (auto& leg : target) {

@@ -13,13 +13,13 @@
 enum class ConsoleRequest {
     None,
     StopGait,    // 'stop': the gait stops and the legs go limp
-    EnterSetup,  // a servo command ran before the gait started: don't start it
+    EnterSetup,  // a servo command ran while the gait wasn't powering the servos: stop the gait
 };
 
 /**
  * @brief Servo setup over USB serial: set IDs, check directions, calibrate centres and limits
- * @note Centres, limits and IDs are stored in the servos' own EEPROM. Commands that move or
- *       configure servos only run while the gait is stopped.
+ * @note Centres, limits and IDs are stored in the servos' own EEPROM. Servo commands only run while
+ *       the gait isn't powering the servos; they stop it and switch servo power on for setup.
 */
 class Console {
 public:
@@ -27,7 +27,7 @@ public:
 
     /**
      * @brief Read any input and run a command once a whole line has arrived
-     * @param[in] gaitRunning Whether the gait owns the servos
+     * @param[in] gaitRunning Whether the gait is powering the servos
     */
     ConsoleRequest poll(bool gaitRunning);
 

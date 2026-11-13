@@ -32,8 +32,9 @@ const char* HELP = R"(Servo setup. IDs are leg x 10 + joint: 11-13 ... 61-63.
   limits <id>               Show the angle limits
   offsets clear             Clear the controller's calibration offsets (CMD_SET_CONFIG)
   stop                      Stop the gait and turn the torque off. The legs will drop!
-  run                       Restart the firmware, which starts the gait
-Moving and configuring only work with the gait stopped. Type q at an Enter prompt to cancel.
+  run                       Restart the firmware, which starts the gait (servos off until a stand)
+Servo commands work while the gait isn't powering the servos: they stop the gait and power the
+servos for setup, until run. Type q at an Enter prompt to cancel.
 )";
 
 /**
@@ -200,9 +201,10 @@ ConsoleRequest Console::run(char* text, bool gaitRunning) {
         return ConsoleRequest::None;
     }
     if (gaitRunning) {
-        Serial.println("The gait is running. Type stop first (the legs will go limp).");
+        Serial.println("The gait is powering the servos. Type stop first (the legs will go limp).");
         return ConsoleRequest::None;
     }
+    servos.powerOnAndWait();  // the gait stops for setup, and the servos need power to answer
 
     uint8_t id = 0;
     int value = 0;
