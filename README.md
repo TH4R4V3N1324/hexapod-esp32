@@ -70,7 +70,7 @@ include/, src/
   Console            Servo setup over USB serial
   Imu, Ism330dhcx    ISM330DHCX driver and Madgwick filter
   PowerMonitor       The leg hubs' INA226s: voltage and current for the battery behaviour
-  DataPacket         ESP-NOW packets exchanged with the controller
+  DataPacket         ESP-NOW with the controller (the packets themselves are gait-core's protocol)
   ConfigManager      The controller's calibration offsets, in NVS flash
 external/
   hexapod-gait-core  Submodule, pinned to a release tag
@@ -152,40 +152,51 @@ drop**. `help` lists everything, including `move`, `limp`, `centre`, `offset` an
 
 ## Controller interface
 
-The packets in `include/DataPacket.h` travel over ESP-NOW, and only packets from `CONTROLLER_MAC` in
+The packets travel over ESP-NOW, and only packets from `CONTROLLER_MAC` in
 `RobotConfig.h` are accepted. The firmware prints the address of any other sender, so you can copy
 it in.
 
 ```cpp
-struct ControlPacket {           // controller → robot
+struct ControlPacket {           // controller → robot, 22 bytes
+    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (2)
     int16_t joystick1X, joystick1Y, joystick2X, joystick2Y;  // ±128, X right, Y forward
+    int16_t tiltYaw;             // tilt mode: yaw, positive turns left
+    int16_t tiltZ;               // tilt mode: raise the body
     int16_t currentHeight;       // body height in mm, 0 = unchanged
     Command command;
     int16_t commandArgs[3];
 };
 
-struct HexPacket {               // robot → controller, in reply to each packet
+struct HexPacket {               // robot → controller, in reply to each packet, 12 bytes
+    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (2)
     int16_t legConfigs[3];       // calibration offsets requested with CMD_REQUEST_CONFIG
     int16_t currentHeight;       // mm
-    int8_t currentPhase;         // always 0
     Gait currentGait;
     Mode currentMode;
+    uint8_t flags;               // HEX_FLAG_SEATED, HEX_FLAG_SERVO_POWER, HEX_FLAG_FEATURE(f)
 };
 ```
+
+The packets are defined once, in hexapod-gait-core's `include/hexapod_protocol/packets.h`, which the
+controllers include too. Packets with another size or version are dropped, and the firmware says
+so on the serial monitor.
 
 | Command | Arguments |
 | --- | --- |
 | `CMD_SET_GAIT` | `[0]` gait |
-| `CMD_SET_MODE` | `[0]` mode. `MODE_CONFIG` (every joint to 0 + offset: the legs laid out flat) is handled here, not by the engine |
+| `CMD_SET_MODE` | `[0]` mode. `MODE_CONFIG` (every joint to its centre plus its offset) is handled here, not by the engine |
 | `CMD_SET_CONFIG` | `[0]` leg 0–5, `[1]` joint 0–2, `[2]` offset in degrees (clamped to ±60) |
 | `CMD_HOME_STANCE` | Stand up |
 | `CMD_REQUEST_CONFIG` | `[0]` leg; its offsets are returned in `legConfigs` |
 | `CMD_SIT` | `[0]` 1 sit, 0 stand. Standing powers the servos up if they're off |
 | `CMD_POWER_DOWN` | Sit down, then turn servo power off |
+| `CMD_SET_FEATURE` | `[0]` feature (terrain adaptation, walk leveling, load balancing, tilt leveling), `[1]` 1 on, 0 off |
+
+All four features work on the Explorer. `flags` reports what's on, whether the robot is seated, and whether the servos are
+powered, so a controller can toggle features and sit or stand without guessing.
 
 A command is applied once, when it or its arguments change. `Gait` and `Mode` values equal
-gait-core's (checked with `static_assert`). If no packet arrives for 200 ms, the sticks count as
-centred, so the robot stops walking. New commands must be appended so existing values don't change.
+gait-core's (checked with `static_assert`). If no packet arrives for 200 ms, the sticks count as centred, so the robot stops walking. New commands must be appended so existing values don't change.
 
 The `CMD_SET_CONFIG` offsets are kept in NVS flash and added on top of each servo's own centre. They're
 for fine-tuning from the controller; the centres themselves are set with `calibrate`. `offsets` on
@@ -201,7 +212,7 @@ the console shows them, and `offsets clear` resets them.
   `PI`, so don't use those names.
 - **No heap in the loop:** `St3215Bus` uses fixed buffers, and gait core doesn't allocate while
   running.
-- **Packet layout:** `DataPacket.h` must stay byte-compatible with the controller.
+- **Packet layout** lives in hexapod-gait-core (`hexapod_protocol/packets.h`), shared with the controllers. Change it there, release gait-core, and update every repo together.
 
 ### Troubleshooting
 

@@ -34,6 +34,33 @@ Scalar stick(int16_t value) {
     return std::clamp(static_cast<Scalar>(value) / robot::JOYSTICK_FULL_SCALE, Scalar(-1), Scalar(1));
 }
 
+/**
+ * @brief The GaitParams switch for a protocol feature (all "live": they apply while running)
+*/
+bool& featureFlag(gait_core::GaitParams& p, GaitFeature f) {
+    switch (f) {
+        case FEATURE_WALK_LEVELING: return p.walk_leveling;
+        case FEATURE_LOAD_BALANCING: return p.load_balancing;
+        case FEATURE_TILT_LEVELING: return p.tilt_leveling;
+        case FEATURE_TERRAIN_ADAPTATION:
+        default: return p.terrain_adaptation;
+    }
+}
+
+bool featureFlag(const gait_core::GaitParams& p, GaitFeature f) {
+    return featureFlag(const_cast<gait_core::GaitParams&>(p), f);
+}
+
+const char* featureName(GaitFeature f) {
+    switch (f) {
+        case FEATURE_TERRAIN_ADAPTATION: return "terrain adaptation";
+        case FEATURE_WALK_LEVELING: return "walk leveling";
+        case FEATURE_LOAD_BALANCING: return "load balancing";
+        case FEATURE_TILT_LEVELING: return "tilt leveling";
+        default: return "?";
+    }
+}
+
 const char* levelName(gait_core::LogLevel level) {
     switch (level) {
         case gait_core::LogLevel::Debug: return "DEBUG";
@@ -115,6 +142,16 @@ void GaitController::handleCommand(const ControlPacket& packet) {
             engine.powerDown();
             break;
 
+        case CMD_SET_FEATURE:
+            if (args[0] >= 0 && args[0] < NUM_FEATURES) {
+                featureFlag(engine.params(), static_cast<GaitFeature>(args[0])) = args[1] != 0;
+                Serial.printf("[gait] %s %s\n", featureName(static_cast<GaitFeature>(args[0])),
+                              args[1] != 0 ? "on" : "off");
+            } else {
+                Serial.printf("Ignored invalid feature %d\n", args[0]);
+            }
+            break;
+
         case CMD_NONE:
         default:
             break;
@@ -125,16 +162,18 @@ void GaitController::handleCommand(const ControlPacket& packet) {
  * @brief Turn the sticks into a velocity command (or a body pose in tilt mode)
  * @note Sticks: X positive is right, Y positive is forward. Left stick drives, right stick X turns,
  *       In normal mode the engine turns with the left stick's
- *       X instead of strafing. In tilt mode the left stick shifts the body and the right stick
- *       rolls and pitches it.
+ *       X instead of strafing. In tilt mode the left stick shifts the body, the right stick
+ *       rolls and pitches it, tiltYaw yaws it and tiltZ raises and lowers it.
 */
 void GaitController::applySticks(const ControlPacket& packet, bool commsOk) {
-    Scalar lx = 0, ly = 0, rx = 0, ry = 0;
+    Scalar lx = 0, ly = 0, rx = 0, ry = 0, yaw = 0, z = 0;
     if (commsOk && !configMode) {
         lx = stick(packet.joystick1X);
         ly = stick(packet.joystick1Y);
         rx = stick(packet.joystick2X);
         ry = stick(packet.joystick2Y);
+        yaw = stick(packet.tiltYaw);
+        z = stick(packet.tiltZ);
     }
 
     gait_core::VelocityCommand command{};
@@ -142,8 +181,8 @@ void GaitController::applySticks(const ControlPacket& packet, bool commsOk) {
         const gait_core::GaitParams& p = engine.params();
         engine.setBodyPose(rx * p.tilt_max_angle,     // stick right lowers the right side
                            ry * p.tilt_max_angle,     // stick forward lowers the nose
-                           0,
-                           gait_core::Vec3(ly, -lx, 0) * p.tilt_max_translation);
+                           yaw * p.tilt_max_angle,    // positive turns left
+                           gait_core::Vec3(ly, -lx, z) * p.tilt_max_translation);
     } else {
         // Full stick is the gait's top speed
         const Scalar maxLinear = engine.maxFootSpeed();
@@ -251,8 +290,16 @@ void GaitController::writeServos(const gait_core::GaitOutput& output, Scalar dt)
 void GaitController::fillTelemetry(HexPacket& packet) const {
     const gait_core::GaitConfig& config = engine.gaitConfig();
     memcpy(packet.legConfigs, configManager.getLegOffsets(requestedConfigLeg), sizeof(packet.legConfigs));
+    packet.version = HEXAPOD_PROTOCOL_VERSION;
     packet.currentHeight = static_cast<int16_t>(std::lround(-config.currentHeight * 1000));
-    packet.currentPhase = 0;  // GaitEngine doesn't expose its phase
     packet.currentGait = static_cast<Gait>(config.gaitChangeRequested ? config.pendingGait : config.currentGait);
     packet.currentMode = configMode ? MODE_CONFIG : static_cast<Mode>(config.currentMode);
+
+    uint8_t flags = 0;
+    if (engine.seated()) flags |= HEX_FLAG_SEATED;
+    if (engine.servoPower()) flags |= HEX_FLAG_SERVO_POWER;
+    for (int f = 0; f < NUM_FEATURES; ++f) {
+        if (featureFlag(engine.params(), static_cast<GaitFeature>(f))) flags |= HEX_FLAG_FEATURE(f);
+    }
+    packet.flags = flags;
 }

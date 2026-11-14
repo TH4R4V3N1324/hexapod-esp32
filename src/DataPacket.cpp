@@ -25,6 +25,8 @@ bool hasAnyPacket = false;
 uint32_t lastPacketMs = 0;
 uint8_t unknownMac[6] = {};
 bool hasUnknownSender = false;
+int badPacketLength = -1;   // a packet from the controller with the wrong size or version
+int badPacketVersion = -1;
 
 void onReceive(const uint8_t* mac, const uint8_t* data, int length) {
     if (memcmp(mac, robot::CONTROLLER_MAC, 6) != 0) {
@@ -34,7 +36,11 @@ void onReceive(const uint8_t* mac, const uint8_t* data, int length) {
         portEXIT_CRITICAL(&packetLock);
         return;
     }
-    if (length != sizeof(ControlPacket)) {
+    if (length != sizeof(ControlPacket) || data[0] != HEXAPOD_PROTOCOL_VERSION) {
+        portENTER_CRITICAL(&packetLock);
+        badPacketLength = length;
+        badPacketVersion = length > 0 ? data[0] : -1;
+        portEXIT_CRITICAL(&packetLock);
         return;
     }
     portENTER_CRITICAL(&packetLock);
@@ -117,15 +123,25 @@ bool CommandChanged() {
 
 void ReportUnknownSender() {
     static uint32_t lastReportMs = 0;
+    static uint32_t lastBadReportMs = 0;
     uint8_t mac[6];
     portENTER_CRITICAL(&packetLock);
     const bool unknown = hasUnknownSender;
     memcpy(mac, unknownMac, 6);
     hasUnknownSender = false;
+    const int badLength = badPacketLength;
+    const int badVersion = badPacketVersion;
+    badPacketLength = -1;
     portEXIT_CRITICAL(&packetLock);
     if (unknown && millis() - lastReportMs > 5000) {
         lastReportMs = millis();
         Serial.printf("[esp-now] Ignored a packet from %02X:%02X:%02X:%02X:%02X:%02X: not robot::CONTROLLER_MAC\n",
                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    }
+    if (badLength >= 0 && millis() - lastBadReportMs > 5000) {
+        lastBadReportMs = millis();
+        Serial.printf("[esp-now] Ignored a %d-byte packet, version %d, from the controller: expected %u bytes, "
+                      "version %d. Update the controller to the same hexapod-gait-core.\n",
+                      badLength, badVersion, (unsigned)sizeof(ControlPacket), HEXAPOD_PROTOCOL_VERSION);
     }
 }
