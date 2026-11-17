@@ -4,9 +4,10 @@
 #include <array>
 #include <cstdint>
 
-#include "gait_core/gait_engine.hpp"
+#include "gait_core/locomotion/gait_engine.hpp"
 
 #include "DataPacket.h"
+#include "RobotConfig.h"
 #include "Servos.h"
 
 /**
@@ -19,7 +20,7 @@
  *
  *       The ST3215s report where they are and how hard they're pushing, so the engine runs
  *       closed loop: it starts from the measured pose and gets the foot forces it needs to feel
- *       the ground.
+ *       the ground. The controller's orientation (LB held, tilt mode) comes in each ControlPacket.
 */
 class GaitController {
 public:
@@ -70,14 +71,14 @@ private:
     gait_core::VelocityCommand filteredVelocity{};
 
     // Servo angles last written to each leg (deg, before calibration offsets)
-    std::array<ServoDegrees, gait_core::NUM_LEGS> servoOutput{};
+    std::array<ServoDegrees, robot::NUM_LEGS> servoOutput{};
 
     bool configMode = false;    // MODE_CONFIG: every joint held at 0 for calibration
     bool blending = false;      // slewing between the calibration pose and the engine's output
     int16_t lastHeightRequest = 0;
     int requestedConfigLeg = 0; // leg whose calibration offsets are reported back (CMD_REQUEST_CONFIG)
 
-    void applySticks(const ControlPacket& packet, bool commsOk);
+    void applySticks(const ControlPacket& packet, bool commsOk, uint64_t nowUs);
     void applyHeight(int16_t heightMm);
     void writeServos(const gait_core::GaitOutput& output, gait_core::Scalar dt);
 };

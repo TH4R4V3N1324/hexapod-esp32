@@ -11,6 +11,9 @@
 
 ConfigManager configManager;
 
+static_assert(sizeof(ConfigManager) == sizeof(int16_t) * robot::NUM_LEGS * robot::JOINTS_PER_LEG,
+              "ConfigManager's offsets must cover every leg and joint");
+
 namespace {
 
 constexpr const char* NAMESPACE = "hexapod";

@@ -143,7 +143,7 @@ void Servos::read(gait_core::JointFeedback& feedback, uint64_t nowUs) {
     // A leg is present only while all three of its servos are answering
     feedback.stamp = static_cast<gait_core::Timestamp>(nowUs) * 1000;
     feedback.hasEffort = true;
-    for (int legNum = 0; legNum < gait_core::NUM_LEGS; ++legNum) {
+    for (int legNum = 0; legNum < robot::NUM_LEGS; ++legNum) {
         feedback.present[legNum] = joints[legNum * 3].answering && joints[legNum * 3 + 1].answering &&
                                    joints[legNum * 3 + 2].answering;
         if (!feedback.present[legNum]) {
@@ -161,7 +161,7 @@ void Servos::read(gait_core::JointFeedback& feedback, uint64_t nowUs) {
     }
 }
 
-void Servos::write(const std::array<ServoDegrees, gait_core::NUM_LEGS>& degrees) {
+void Servos::write(const std::array<ServoDegrees, robot::NUM_LEGS>& degrees) {
     std::array<uint8_t, NUM_SERVOS> writeIds;
     std::array<int, NUM_SERVOS> positions;
     int count = 0;
@@ -201,21 +201,21 @@ int Servos::answeringCount() const {
  *       lowering the femur, and tibia is 0 with the tibia in line with the femur. Every joint at 0 is
  *       each servo at its centre. See robot::JOINT_DIRECTION.
 */
-ServoDegrees Servos::toServoDegrees(const gait_core::JointAngles& angles) {
-    const float joints[3] = {angles.coxa, angles.femur, angles.tibia};
-    ServoDegrees degrees;
-    for (int joint = 0; joint < 3; ++joint) {
-        degrees[joint] = robot::JOINT_DIRECTION[joint] * joints[joint] * kRadToDeg;
+ServoDegrees Servos::toServoDegrees(const gait_core::JointVec& angles) {
+    ServoDegrees degrees{};
+    const int joints = std::min<int>(angles.size(), robot::JOINTS_PER_LEG);
+    for (int joint = 0; joint < joints; ++joint) {
+        degrees[joint] = robot::JOINT_DIRECTION[joint] * angles(joint) * kRadToDeg;
     }
     return degrees;
 }
 
-gait_core::JointAngles Servos::toJointAngles(const ServoDegrees& degrees) {
-    float joints[3];
-    for (int joint = 0; joint < 3; ++joint) {
-        joints[joint] = degrees[joint] / robot::JOINT_DIRECTION[joint] * kDegToRad;
+gait_core::JointVec Servos::toJointAngles(const ServoDegrees& degrees) {
+    gait_core::JointVec joints(robot::JOINTS_PER_LEG);
+    for (int joint = 0; joint < robot::JOINTS_PER_LEG; ++joint) {
+        joints(joint) = degrees[joint] / robot::JOINT_DIRECTION[joint] * kDegToRad;
     }
-    return {joints[0], joints[1], joints[2]};
+    return joints;
 }
 
 float Servos::stepsToDegrees(int steps) {

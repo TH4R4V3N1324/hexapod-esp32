@@ -2,7 +2,7 @@
 #include "GaitController.h"
 #include "RobotConfig.h"
 #include "Servos.h"
-#include "hexapod_behaviour/battery_monitor.hpp"
+#include "gait_core/behaviour/battery_monitor.hpp"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -15,7 +15,7 @@
 #include "Imu.h"
 #include "PowerMonitor.h"
 
-using hexapod_behaviour::BatteryLevel;
+using gait_core::behaviour::BatteryLevel;
 
 namespace {
 
@@ -28,7 +28,7 @@ Servos servos;
 GaitController controller(servos);
 Imu imu(Wire, robot::IMU_ADDRESS);
 PowerMonitor power(Wire);
-hexapod_behaviour::BatteryMonitor battery(PowerMonitor::NUM_HUBS, robot::batteryParams());
+gait_core::behaviour::BatteryMonitor battery(PowerMonitor::NUM_HUBS, robot::batteryParams());
 Console console(servos);
 
 State state = State::Running;
@@ -68,7 +68,7 @@ void printStatus() {
                       gait.servoPower() ? "on" : "off (stand from the controller to power up)",
                       servos.answeringCount(), Servos::NUM_SERVOS);
         const gait_core::GaitConfig& config = gait.gaitConfig();
-        Serial.printf("Gait: %s, %s mode, %s, height %.0f mm\n", gait_core::GaitConfig::gaits[config.currentGait].name,
+        Serial.printf("Gait: %s, %s mode, %s, height %.0f mm\n", config.gaitName(config.currentGait),
                       gait_core::GaitConfig::modes[config.currentMode].name, gait.seated() ? "seated" : "standing",
                       -config.currentHeight * 1000);
         Serial.printf("Loop: longest tick %lu us of %lu, %lu overruns\n", static_cast<unsigned long>(longestTickUs),
@@ -98,7 +98,7 @@ void printStatus() {
     bool hasData = false;
     float lowest = 0;
     for (int hub = 0; hub < battery.monitors(); ++hub) {
-        const hexapod_behaviour::PowerReading& reading = battery.reading(hub);
+        const gait_core::behaviour::PowerReading& reading = battery.reading(hub);
         if (!battery.stale(hub, stamp(esp_timer_get_time())) && (!hasData || reading.voltage < lowest)) {
             lowest = reading.voltage;
             hasData = true;
@@ -128,7 +128,7 @@ void updatePower(uint64_t now) {
         return;
     }
     nextBatteryUs = now + robot::BATTERY_UPDATE_PERIOD_US;
-    const hexapod_behaviour::BatteryStatus status = battery.update(stamp(now));
+    const gait_core::behaviour::BatteryStatus status = battery.update(stamp(now));
     if (status.sit) {
         const gait_core::CommandResult result = status.powerOff ? controller.powerDown() : controller.sitDown();
         battery.sitRequested();

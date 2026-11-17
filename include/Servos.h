@@ -4,7 +4,9 @@
 #include <array>
 #include <cstdint>
 
-#include "gait_core/gait_engine.hpp"
+#include "gait_core/locomotion/gait_engine.hpp"
+
+#include "RobotConfig.h"
 
 #include "St3215Bus.h"
 
@@ -27,7 +29,7 @@ using ServoDegrees = std::array<float, 3>;
 */
 class Servos {
 public:
-    static constexpr int NUM_SERVOS = gait_core::NUM_LEGS * 3;
+    static constexpr int NUM_SERVOS = robot::NUM_LEGS * robot::JOINTS_PER_LEG;
 
     Servos();
 
@@ -58,7 +60,7 @@ public:
      * @param[in] degrees Servo angles before calibration offsets
      * @note Servos that aren't answering, or are holding until a new target arrives, are skipped
     */
-    void write(const std::array<ServoDegrees, gait_core::NUM_LEGS>& degrees);
+    void write(const std::array<ServoDegrees, robot::NUM_LEGS>& degrees);
 
     /**
      * @brief Turn the torque off on every servo on the bus. The legs will drop.
@@ -68,13 +70,13 @@ public:
     int answeringCount() const;
 
     /**
-     * @brief gait_core joint angles (rad) to servo angles (deg from centre), before calibration offsets
+     * @brief gait_core joint angles (rad: coxa, femur, tibia) to servo angles (deg from centre), before calibration offsets
     */
-    static ServoDegrees toServoDegrees(const gait_core::JointAngles& angles);
+    static ServoDegrees toServoDegrees(const gait_core::JointVec& angles);
     /**
      * @brief Servo angles (deg from centre, before calibration offsets) back to gait_core joint angles (rad)
     */
-    static gait_core::JointAngles toJointAngles(const ServoDegrees& degrees);
+    static gait_core::JointVec toJointAngles(const ServoDegrees& degrees);
 
     static float stepsToDegrees(int steps);
     static int degreesToSteps(float degrees);

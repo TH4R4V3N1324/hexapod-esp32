@@ -63,7 +63,7 @@ in `include/RobotConfig.h`.
 ```text
 include/, src/
   main.cpp           Entry point, start-up and the 100 Hz control loop
-  RobotConfig.h      Pins, geometry, GaitParams, servo IDs and directions, timings, IMU settings
+  RobotConfig.h      Pins, Explorer definition, GaitParams, servo IDs and directions, timings, IMU settings
   GaitController     Controller packets → GaitEngine inputs; servo feedback in, joint targets out
   Servos             Joint angles ↔ ST3215 steps, feedback, and servo power (SERVO_EN) for the 18 servos
   St3215Bus          Feetech STS protocol on an ESP32 UART
@@ -157,33 +157,36 @@ The packets travel over ESP-NOW, and only packets from `CONTROLLER_MAC` in
 it in.
 
 ```cpp
-struct ControlPacket {           // controller → robot, 22 bytes
-    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (2)
+struct ControlPacket {           // controller → robot, 29 bytes
+    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (4)
     int16_t joystick1X, joystick1Y, joystick2X, joystick2Y;  // ±128, X right, Y forward
     int16_t tiltYaw;             // tilt mode: yaw, positive turns left
     int16_t tiltZ;               // tilt mode: raise the body
     int16_t currentHeight;       // body height in mm, 0 = unchanged
     Command command;
     int16_t commandArgs[3];
+    int16_t controllerRoll, controllerPitch, controllerYaw;  // mrad, valid while controllerTilt
+    uint8_t controllerTilt;      // LB held with a controller IMU
 };
 
-struct HexPacket {               // robot → controller, in reply to each packet, 12 bytes
-    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (2)
-    int16_t legConfigs[3];       // calibration offsets requested with CMD_REQUEST_CONFIG
+struct HexPacket {               // robot → controller, in reply to each packet, 19 bytes
+    uint8_t version;             // HEXAPOD_PROTOCOL_VERSION (4)
+    int16_t legConfigs[6];       // calibration offsets requested with CMD_REQUEST_CONFIG (3 used, rest 0)
     int16_t currentHeight;       // mm
     Gait currentGait;
     Mode currentMode;
     uint8_t flags;               // HEX_FLAG_SEATED, HEX_FLAG_SERVO_POWER, HEX_FLAG_FEATURE(f)
+    uint8_t numGaits;            // gaits the robot has (3)
 };
 ```
 
-The packets are defined once, in hexapod-gait-core's `include/hexapod_protocol/packets.h`, which the
+The packets are defined once, in hexapod-gait-core's `include/gait_core/protocol/packets.h`, which the
 controllers include too. Packets with another size or version are dropped, and the firmware says
 so on the serial monitor.
 
 | Command | Arguments |
 | --- | --- |
-| `CMD_SET_GAIT` | `[0]` gait |
+| `CMD_SET_GAIT` | `[0]` gait, 0 to `numGaits` − 1 |
 | `CMD_SET_MODE` | `[0]` mode. `MODE_CONFIG` (every joint to its centre plus its offset) is handled here, not by the engine |
 | `CMD_SET_CONFIG` | `[0]` leg 0–5, `[1]` joint 0–2, `[2]` offset in degrees (clamped to ±60) |
 | `CMD_HOME_STANCE` | Stand up |
@@ -195,8 +198,13 @@ so on the serial monitor.
 All four features work on the Explorer. `flags` reports what's on, whether the robot is seated, and whether the servos are
 powered, so a controller can toggle features and sit or stand without guessing.
 
-A command is applied once, when it or its arguments change. `Gait` and `Mode` values equal
-gait-core's (checked with `static_assert`). If no packet arrives for 200 ms, the sticks count as centred, so the robot stops walking. New commands must be appended so existing values don't change.
+In tilt mode, while `controllerTilt` is set the body follows the controller's orientation
+(relative to where it was when LB was pressed) instead of the sticks; releasing it eases the body
+back to neutral. Outside tilt mode the controller orientation is ignored here: driving by tilting
+the controller is the controller's job (gait-core's `GamepadTeleop`), which sends it as stick values.
+
+A command is applied once, when it or its arguments change. `Gait` values equal explorer's gait
+indices and `Mode` values equal gait-core's (checked with `static_assert`). If no packet arrives for 200 ms, the sticks count as centred, so the robot stops walking. New commands must be appended so existing values don't change.
 
 The `CMD_SET_CONFIG` offsets are kept in NVS flash and added on top of each servo's own centre. They're
 for fine-tuning from the controller; the centres themselves are set with `calibrate`. `offsets` on
@@ -212,7 +220,7 @@ the console shows them, and `offsets clear` resets them.
   `PI`, so don't use those names.
 - **No heap in the loop:** `St3215Bus` uses fixed buffers, and gait core doesn't allocate while
   running.
-- **Packet layout** lives in hexapod-gait-core (`hexapod_protocol/packets.h`), shared with the controllers. Change it there, release gait-core, and update every repo together.
+- **Packet layout** lives in hexapod-gait-core (`gait_core/protocol/packets.h`), shared with the controllers. Change it there, release gait-core, and update every repo together.
 
 ### Troubleshooting
 

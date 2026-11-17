@@ -4,19 +4,19 @@
 #include <array>
 #include <cstdint>
 
-#include "gait_core/gait_engine.hpp"
-#include "gait_core/robot_geometry.hpp"
-#include "hexapod_behaviour/battery_monitor.hpp"
+#include "gait_core/behaviour/battery_monitor.hpp"
+#include "gait_core/locomotion/gait_engine.hpp"
+#include "gait_core/robots/explorer.hpp"
 
 /**
  * Everything specific to running the hexapod on an ESP32 with ST3215 bus servos: the pins, its
- * shape (gait_core's preset), the gait settings and how gait_core's joint angles map onto the servos.
+ * shape (gait_core::robots' explorer), the gait settings and how gait_core's joint angles map onto the servos.
  *
  * gait_core works in SI units with the REP 103 body frame (+x forward, +y left, +z up), and legs
  * indexed 0-5 clockwise from the front right (legs 1-6 in hexapod-docs). Servo IDs are
  * leg (counted from 1) x 10 + joint (coxa 1, femur 2, tibia 3).
  *
- *   gait_core::Leg       leg   servo IDs
+ *   explorer::Leg        leg   servo IDs
  *   LEG_FRONT_RIGHT  0   1     11, 12, 13   (coxa, femur, tibia)
  *   LEG_MIDDLE_RIGHT 1   2     21, 22, 23
  *   LEG_REAR_RIGHT   2   3     31, 32, 33
@@ -67,13 +67,16 @@ constexpr uint32_t COMMS_TIMEOUT_MS = 200; // no packet for this long and the st
 // Geometry
 // ---------------------------------------------------------------------------------------------
 
+constexpr int NUM_LEGS = gait_core::explorer::NUM_LEGS;
+constexpr int JOINTS_PER_LEG = 3;  // coxa, femur, tibia (gait_core::YawPitchPitchLeg)
+
 /**
- * @brief gait_core's explorer() geometry preset
- * @note ST3215s turn +-180 degrees, so the preset's joint limits need no narrowing. The servos'
+ * @brief The Explorer, gait_core::explorer::robot(): legs, joint chains and limits, stance and gaits
+ * @note ST3215s turn +-180 degrees, so explorer's joint limits need no narrowing. The servos'
  *       own angle limits, set with the console's calibrate command, guard the end stops.
 */
-inline gait_core::RobotGeometry geometry() {
-    return gait_core::RobotGeometry::explorer();
+inline gait_core::RobotDefinition robotDefinition() {
+    return gait_core::explorer::robot();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -150,8 +153,8 @@ constexpr uint32_t BATTERY_UPDATE_PERIOD_US = 500000; // battery decisions at 2 
  * @brief Battery behaviour (3S LiPo): a warning when low; at critical, sit down and turn the servo
  *        power off. Starting points: tune them against real readings under load.
 */
-inline hexapod_behaviour::BatteryParams batteryParams() {
-    hexapod_behaviour::BatteryParams p;
+inline gait_core::behaviour::BatteryParams batteryParams() {
+    gait_core::behaviour::BatteryParams p;
     p.warning_voltage = 10.5f;   // 3.5 V/cell
     p.critical_voltage = 9.9f;   // 3.3 V/cell
     p.hysteresis = 0.2f;         // V above a threshold before it clears

@@ -262,7 +262,7 @@ ConsoleRequest Console::run(char* text, bool gaitRunning) {
             configManager.clear();
             Serial.println("Controller calibration offsets cleared");
         } else {
-            for (int leg = 0; leg < gait_core::NUM_LEGS; ++leg) {
+            for (int leg = 0; leg < robot::NUM_LEGS; ++leg) {
                 const int16_t* o = configManager.getLegOffsets(leg);
                 Serial.printf("  leg%d  coxa %+d  femur %+d  tibia %+d deg\n", leg + 1, o[0], o[1], o[2]);
             }
@@ -310,7 +310,7 @@ void Console::scan(bool all) {
 }
 
 void Console::positions() {
-    for (int legNum = 0; legNum < gait_core::NUM_LEGS; ++legNum) {
+    for (int legNum = 0; legNum < robot::NUM_LEGS; ++legNum) {
         Serial.printf("  leg%d", legNum + 1);
         for (int joint = 0; joint < 3; ++joint) {
             St3215State state;

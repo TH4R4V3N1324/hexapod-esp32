@@ -4,8 +4,8 @@
 #include <cstdint>
 
 // ControlPacket, HexPacket, Command, Gait, Mode, GaitFeature and HEX_FLAG_*: the packets every
-// controller and robot share, from hexapod-gait-core (include/hexapod_protocol/packets.h)
-#include <hexapod_protocol/packets.h>
+// controller and robot share, from hexapod-gait-core (include/gait_core/protocol/packets.h)
+#include <gait_core/protocol/packets.h>
 
 extern ControlPacket controlPacket;
 extern HexPacket hexPacket;
